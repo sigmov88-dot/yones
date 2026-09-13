@@ -14,13 +14,76 @@ export interface ModelInfo {
 }
 
 export const DEFAULT_MODELS: ModelInfo[] = [
-  // 🚀 Top Frontier Models
+  // 🚀 Google Gemini 3 & Frontier Models
   {
-    id: "gemini-2.0-flash",
-    name: "Gemini 2.0 Flash",
+    id: "gemini-3.8-flash",
+    name: "Gemini 3.8 Flash",
     provider: "gemini",
     enabled: false,
-    description: "Google's fast multimodal model with native tool use and low latency",
+    description: "Top-tier agentic software engineering, multi-step problem solving and low latency",
+    context: "1M",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3.7-flash",
+    name: "Gemini 3.7 Flash",
+    provider: "gemini",
+    enabled: false,
+    description: "Hybrid reasoning and fast response model for complex coding workflows",
+    context: "1M",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3.6-flash",
+    name: "Gemini 3.6 Flash",
+    provider: "gemini",
+    enabled: false,
+    description: "Balanced speed and quality for code generation and analysis",
+    context: "1M",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3.5-flash",
+    name: "Gemini 3.5 Flash",
+    provider: "gemini",
+    enabled: false,
+    description: "High throughput, cost-efficient model for general developer tasks",
+    context: "1M",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash-Lite",
+    provider: "gemini",
+    enabled: false,
+    description: "Ultra-fast lightweight reasoning model optimized for high-frequency requests",
+    context: "1M",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3.1-flash-lite",
+    name: "Gemini 3.1 Flash-Lite",
+    provider: "gemini",
+    enabled: false,
+    description: "Lightweight, low-latency model for instant edits and completions",
+    context: "1M",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3.1-pro-preview",
+    name: "Gemini 3.1 Pro (Preview)",
+    provider: "gemini",
+    enabled: false,
+    description: "Deep reasoning, vast 2M context and architecture-scale planning",
+    context: "2M",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3-flash-preview",
+    name: "Gemini 3 Flash (Preview)",
+    provider: "gemini",
+    enabled: false,
+    description: "Next-gen Gemini 3 preview model with cutting-edge multimodal intelligence",
     context: "1M",
     category: "frontier",
   },
@@ -34,6 +97,15 @@ export const DEFAULT_MODELS: ModelInfo[] = [
     category: "frontier",
   },
   {
+    id: "gemini-2.0-flash",
+    name: "Gemini 2.0 Flash",
+    provider: "gemini",
+    enabled: false,
+    description: "Google's fast multimodal model with native tool use and low latency",
+    context: "1M",
+    category: "frontier",
+  },
+  {
     id: "gemini-1.5-pro",
     name: "Gemini 1.5 Pro",
     provider: "gemini",
@@ -43,20 +115,11 @@ export const DEFAULT_MODELS: ModelInfo[] = [
     category: "frontier",
   },
   {
-    id: "gemini-3-8-flash",
-    name: "Gemini 3.8 Flash (Preview)",
+    id: "gemini-1.5-flash",
+    name: "Gemini 1.5 Flash",
     provider: "gemini",
     enabled: false,
-    description: "Agentic software engineering with top benchmarks (auto-mapped to Google Flash tier)",
-    context: "1M",
-    category: "frontier",
-  },
-  {
-    id: "gemini-3-8-flash-cyber",
-    name: "Gemini 3.8 Flash Cyber",
-    provider: "gemini",
-    enabled: false,
-    description: "Cybersecurity specialist for vulnerability finding and patching",
+    description: "Lightweight, high-speed multimodal model with 1M context",
     context: "1M",
     category: "frontier",
   },
@@ -274,9 +337,14 @@ export function loadModels(): ModelInfo[] {
       if (raw) {
         const parsed = JSON.parse(raw) as ModelInfo[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(parsed.map((m) => m.id));
+          // Normalize legacy IDs (e.g. gemini-3-8-flash -> gemini-3.8-flash)
+          const migrated = parsed.map((m) => {
+            if (m.id === "gemini-3-8-flash") return { ...m, id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" };
+            return m;
+          });
+          const existingIds = new Set(migrated.map((m) => m.id));
           const missingDefaults = DEFAULT_MODELS.filter((m) => !existingIds.has(m.id));
-          const merged = [...parsed, ...missingDefaults];
+          const merged = [...migrated, ...missingDefaults];
           inMemoryModels = merged;
           return merged;
         }
@@ -427,6 +495,10 @@ export function getActiveModel(): ModelInfo | null {
     }
   } catch {
     // ignore
+  }
+
+  if (activeId === "gemini-3-8-flash") {
+    activeId = "gemini-3.8-flash";
   }
 
   if (activeId) {

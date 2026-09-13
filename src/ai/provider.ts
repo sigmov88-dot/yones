@@ -77,6 +77,16 @@ async function resolveActualModel(
   apiKey: string
 ): Promise<string> {
   if (provider === "gemini") {
+    let requested = model;
+    if (requested === "gemini-3-8-flash") requested = "gemini-3.8-flash";
+    if (requested === "gemini-3-7-flash") requested = "gemini-3.7-flash";
+    if (requested === "gemini-3-6-flash") requested = "gemini-3.6-flash";
+    if (requested === "gemini-3-5-flash") requested = "gemini-3.5-flash";
+    if (requested === "gemini-3-5-flash-lite") requested = "gemini-3.5-flash-lite";
+    if (requested === "gemini-3-1-flash-lite") requested = "gemini-3.1-flash-lite";
+    if (requested === "gemini-3-1-pro-preview") requested = "gemini-3.1-pro-preview";
+    if (requested === "gemini-3-flash-preview") requested = "gemini-3-flash-preview";
+
     try {
       const now = Date.now();
       if (now - geminiModelCache.timestamp > 120_000 || geminiModelCache.models.length === 0) {
@@ -97,11 +107,21 @@ async function resolveActualModel(
       }
 
       if (geminiModelCache.models.length > 0) {
-        if (geminiModelCache.models.includes(model)) {
-          return model;
+        if (geminiModelCache.models.includes(requested)) {
+          return requested;
         }
 
-        const isPro = model.toLowerCase().includes("pro") || model.toLowerCase().includes("cyber");
+        const matched = geminiModelCache.models.find(
+          (m) => m === requested || m.startsWith(requested) || requested.startsWith(m)
+        );
+        if (matched) return matched;
+
+        // If explicitly requested a Gemini 3 model, try it directly
+        if (requested.startsWith("gemini-3")) {
+          return requested;
+        }
+
+        const isPro = requested.toLowerCase().includes("pro") || requested.toLowerCase().includes("cyber");
         if (isPro) {
           const proPriority = ["gemini-2.5-pro", "gemini-2.0-pro-exp-02-05", "gemini-1.5-pro"];
           for (const p of proPriority) {
@@ -125,10 +145,7 @@ async function resolveActualModel(
       // ignore network errors and fallback
     }
 
-    if (model.includes("pro") || model.includes("cyber")) {
-      return "gemini-1.5-pro";
-    }
-    return "gemini-2.0-flash";
+    return requested;
   }
 
   if (provider === "openai") {

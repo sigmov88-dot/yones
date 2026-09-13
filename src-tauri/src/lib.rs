@@ -173,8 +173,8 @@ async fn start_llm_stream(
                     let _ = channel.send(LlmEvent::Done);
                     return;
                 }
-                let resolved_model = if model.contains("3-8-flash") || model == "gemini-3-8-flash" {
-                    "gemini-2.0-flash".to_string()
+                let resolved_model = if model == "gemini-3-8-flash" {
+                    "gemini-3.8-flash".to_string()
                 } else if model.contains("cyber") {
                     "gemini-1.5-pro".to_string()
                 } else {

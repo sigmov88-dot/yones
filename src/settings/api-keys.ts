@@ -53,10 +53,10 @@ export const PROVIDER_CATALOG: ProviderMeta[] = [
   {
     id: "gemini",
     name: "Google Gemini",
-    description: "Agentic software engineering and reasoning (Gemini 2.5 Flash / 3.8 Preview, Gemini 2.0 Flash, 1.5 Pro).",
+    description: "Agentic software engineering and reasoning (Gemini 3.8 / 3.7 / 3.1, Gemini 2.5 / 2.0 Flash, 1.5 Pro).",
     placeholder: "AIzaSy...",
     docsUrl: "https://aistudio.google.com/app/apikey",
-    defaultModel: "gemini-2.0-flash",
+    defaultModel: "gemini-3.8-flash",
     prefix: "AIza",
   },
 ];

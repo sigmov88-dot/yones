@@ -28,9 +28,10 @@ describe("Model Registry & Real September 2026 Models", () => {
     // 🚀 Frontier models
     expect(ids.has("gpt-6-astra")).toBe(true);
     expect(ids.has("claude-fable-5-1")).toBe(true);
-    expect(ids.has("claude-mythos-5-1")).toBe(true);
-    expect(ids.has("gemini-3-8-flash")).toBe(true);
-    expect(ids.has("gemini-3-8-flash-cyber")).toBe(true);
+    expect(ids.has("gemini-3.8-flash")).toBe(true);
+    expect(ids.has("gemini-3.7-flash")).toBe(true);
+    expect(ids.has("gemini-3.1-pro-preview")).toBe(true);
+    expect(ids.has("gemini-3-flash-preview")).toBe(true);
     expect(ids.has("meta/muse-spark-1-3")).toBe(true);
 
     // 🇨🇳 SuperCLUE & open weights

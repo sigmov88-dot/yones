@@ -259,11 +259,32 @@ impl LlmService {
         let resp = self
             .client
             .post(endpoint)
-            .headers(headers)
+            .headers(headers.clone())
             .json(&payload)
             .send()
             .await
             .map_err(|e| e.to_string())?;
+
+        let resp = if !resp.status().is_success()
+            && resp.status() == reqwest::StatusCode::NOT_FOUND
+            && endpoint.contains("googleapis.com")
+            && model != "gemini-2.0-flash"
+        {
+            payload["model"] = serde_json::json!("gemini-2.0-flash");
+            match self
+                .client
+                .post(endpoint)
+                .headers(headers)
+                .json(&payload)
+                .send()
+                .await
+            {
+                Ok(fallback_resp) if fallback_resp.status().is_success() => fallback_resp,
+                _ => resp,
+            }
+        } else {
+            resp
+        };
 
         if !resp.status().is_success() {
             let status = resp.status();
