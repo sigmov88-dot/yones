@@ -1,4 +1,5 @@
 import { For } from "solid-js";
+import { CloseIcon } from "../ui/icons";
 
 export interface ContextChipsProps {
   files: string[];
@@ -18,7 +19,7 @@ export function ContextChips(props: ContextChipsProps) {
               onClick={() => props.onRemove(file)}
               title="Remove context"
             >
-              &times;
+              <CloseIcon class="h-3 w-3" />
             </button>
           </div>
         )}

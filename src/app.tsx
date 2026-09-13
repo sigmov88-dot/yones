@@ -9,6 +9,7 @@ import { AssistantPanel } from "./assistant/Panel";
 import { StatusBar } from "./ui/StatusBar";
 import { ApiKeyModal } from "./settings/ApiKeyModal";
 import { fetchAllKeyStatuses } from "./settings/api-keys";
+import { GearIcon, SparklesIcon, FolderIcon, SearchIcon, CloseIcon } from "./ui/icons";
 
 interface OpenTab {
   path: string;
@@ -231,17 +232,19 @@ export function App() {
           <span class="text-[10px] text-[var(--color-fg-muted)]">v2.0</span>
           <button
             type="button"
-            class="ml-2 px-2 py-0.5 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]"
+            class="ml-2 px-2.5 py-1 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)] flex items-center gap-1.5"
             onClick={handleOpenFolder}
           >
-            Open Folder (Cmd+O)
+            <FolderIcon class="h-3.5 w-3.5 opacity-80" />
+            <span>Open Folder (Cmd+O)</span>
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]"
+            class="px-2.5 py-1 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)] flex items-center gap-1.5"
             onClick={() => setQuickOpenOpen(true)}
           >
-            Quick Open (Cmd+P)
+            <SearchIcon class="h-3.5 w-3.5 opacity-80" />
+            <span>Quick Open (Cmd+P)</span>
           </button>
         </div>
 
@@ -252,7 +255,7 @@ export function App() {
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="px-2 py-0.5 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
+            class="px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
             classList={{
               "bg-[var(--color-accent)] text-white border-transparent": settingsOpen(),
               "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
@@ -261,7 +264,7 @@ export function App() {
             onClick={() => setSettingsOpen(true)}
             title="Configure API Keys & Model Providers"
           >
-            <span>&#9881;</span>
+            <GearIcon class="h-3.5 w-3.5" />
             <span>API Keys</span>
             <span
               class="h-1.5 w-1.5 rounded-full"
@@ -274,7 +277,7 @@ export function App() {
 
           <button
             type="button"
-            class="px-2 py-0.5 text-xs rounded border transition-colors cursor-pointer"
+            class="px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
             classList={{
               "bg-[var(--color-accent)] text-white border-transparent": assistantOpen(),
               "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
@@ -282,7 +285,8 @@ export function App() {
             }}
             onClick={() => setAssistantOpen((prev) => !prev)}
           >
-            Assistant (Cmd+L)
+            <SparklesIcon class="h-3.5 w-3.5" />
+            <span>Assistant (Cmd+L)</span>
           </button>
         </div>
       </header>
@@ -295,25 +299,27 @@ export function App() {
           <div class="h-8 flex items-center border-b border-[var(--color-border-subtle)] px-2 gap-1 select-none">
             <button
               type="button"
-              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors"
+              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors flex items-center gap-1.5"
               classList={{
                 "bg-[var(--color-bg-active)] text-[var(--color-fg-primary)]": sidebarTab() === "files",
                 "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)]": sidebarTab() !== "files",
               }}
               onClick={() => setSidebarTab("files")}
             >
-              Files
+              <FolderIcon class="h-3.5 w-3.5 opacity-80" />
+              <span>Files</span>
             </button>
             <button
               type="button"
-              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors"
+              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors flex items-center gap-1.5"
               classList={{
                 "bg-[var(--color-bg-active)] text-[var(--color-fg-primary)]": sidebarTab() === "search",
                 "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)]": sidebarTab() !== "search",
               }}
               onClick={() => setSidebarTab("search")}
             >
-              Search (Cmd+Shift+F)
+              <SearchIcon class="h-3.5 w-3.5 opacity-80" />
+              <span>Search (Cmd+Shift+F)</span>
             </button>
           </div>
 
@@ -357,10 +363,10 @@ export function App() {
                   <span class="truncate max-w-[120px]">{tab.name}</span>
                   <button
                     type="button"
-                    class="opacity-0 group-hover:opacity-100 text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] leading-none text-xs"
+                    class="opacity-0 group-hover:opacity-100 text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] p-0.5 rounded hover:bg-[var(--color-bg-panel)] flex items-center justify-center"
                     onClick={(e) => closeTab(tab.path, e)}
                   >
-                    &times;
+                    <CloseIcon class="h-3 w-3" />
                   </button>
                 </div>
               )}

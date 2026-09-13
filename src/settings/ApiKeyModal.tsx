@@ -7,6 +7,14 @@ import {
   testApiKey,
   type KeyStatus,
 } from "./api-keys";
+import {
+  CloseIcon,
+  ExternalLinkIcon,
+  CheckIcon,
+  EyeIcon,
+  EyeOffIcon,
+  KeyIcon,
+} from "../ui/icons";
 
 export interface ApiKeyModalProps {
   onClose: () => void;
@@ -126,10 +134,10 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
           </div>
           <button
             type="button"
-            class="text-base text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer px-1.5 py-0.5 rounded"
+            class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-1 rounded hover:bg-[var(--color-bg-active)] flex items-center justify-center"
             onClick={props.onClose}
           >
-            &times;
+            <CloseIcon class="h-4 w-4" />
           </button>
         </div>
 
@@ -181,7 +189,8 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
                   rel="noreferrer"
                   class="text-[11px] text-[var(--color-accent)] hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  Get API Key &nearr;
+                  <span>Get API Key</span>
+                  <ExternalLinkIcon class="h-3 w-3" />
                 </a>
               </div>
               <p class="text-xs text-[var(--color-fg-muted)] mt-1">
@@ -196,13 +205,15 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
                 <Show
                   when={currentStatus()?.is_set}
                   fallback={
-                    <span class="text-[var(--color-warning)] font-medium flex items-center gap-1">
-                      <span>&bull;</span> Not configured
+                    <span class="text-[var(--color-warning)] font-medium flex items-center gap-1.5">
+                      <span class="h-1.5 w-1.5 rounded-full bg-[var(--color-warning)]" />
+                      <span>Not configured</span>
                     </span>
                   }
                 >
-                  <span class="text-[var(--color-success)] font-medium flex items-center gap-1">
-                    <span>&#10003;</span> Active ({currentStatus()?.source})
+                  <span class="text-[var(--color-success)] font-medium flex items-center gap-1.5">
+                    <CheckIcon class="h-3.5 w-3.5" />
+                    <span>Active ({currentStatus()?.source})</span>
                   </span>
                 </Show>
               </div>
@@ -233,7 +244,7 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
                 <input
                   type={showKey() ? "text" : "password"}
                   placeholder={selectedMeta().placeholder}
-                  class="w-full px-3 py-2 pr-16 text-xs rounded-lg font-mono bg-[var(--color-bg-raised)] border border-[var(--color-border)] text-[var(--color-fg-primary)] placeholder-[var(--color-fg-muted)] outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent-ring)]"
+                  class="w-full px-3 py-2 pr-10 text-xs rounded-lg font-mono bg-[var(--color-bg-raised)] border border-[var(--color-border)] text-[var(--color-fg-primary)] placeholder-[var(--color-fg-muted)] outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent-ring)]"
                   value={keyInput()}
                   onInput={(e) => setKeyInput(e.currentTarget.value)}
                   onKeyDown={(e) => {
@@ -242,10 +253,13 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
                 />
                 <button
                   type="button"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer px-1 py-0.5"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-1 rounded"
                   onClick={() => setShowKey((prev) => !prev)}
+                  title={showKey() ? "Hide API key" : "Show API key"}
                 >
-                  {showKey() ? "Hide" : "Show"}
+                  <Show when={showKey()} fallback={<EyeIcon class="h-3.5 w-3.5" />}>
+                    <EyeOffIcon class="h-3.5 w-3.5" />
+                  </Show>
                 </button>
               </div>
             </div>
@@ -290,8 +304,9 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
 
         {/* Security Footer */}
         <div class="p-3 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] text-[11px] text-[var(--color-fg-muted)] flex items-center justify-between">
-          <span>
-            Stored encrypted in OS Keyring. Keys are never sent to Yones servers.
+          <span class="flex items-center gap-1.5">
+            <KeyIcon class="h-3.5 w-3.5 text-[var(--color-accent)]" />
+            <span>Stored encrypted in OS Keyring. Keys are never sent to Yones servers.</span>
           </span>
           <button
             type="button"

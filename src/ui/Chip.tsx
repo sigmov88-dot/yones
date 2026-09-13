@@ -1,4 +1,5 @@
 import { JSX } from "solid-js";
+import { CloseIcon } from "./icons";
 
 export interface ChipProps {
   label: string;
@@ -18,9 +19,9 @@ export function Chip(props: ChipProps) {
         <button
           type="button"
           onClick={props.onRemove}
-          class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer"
+          class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer leading-none"
         >
-          &times;
+          <CloseIcon class="h-3 w-3" />
         </button>
       )}
     </span>

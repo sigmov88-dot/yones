@@ -1,5 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { executeTool } from "../ai/tools";
+import { CloseIcon } from "../ui/icons";
 
 export interface SearchMatchItem {
   file_path: string;
@@ -74,7 +75,7 @@ export function SearchPanel(props: SearchPanelProps) {
           onClick={props.onClose}
           title="Close search"
         >
-          &times;
+          <CloseIcon class="h-3.5 w-3.5" />
         </button>
       </div>
 

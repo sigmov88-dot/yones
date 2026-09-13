@@ -1,5 +1,6 @@
 import { createSignal, Show } from "solid-js";
 import { VirtualList } from "./virtual-list";
+import { ChevronDownIcon, ChevronRightIcon, FolderIcon, FolderOpenIcon, FileIcon } from "../ui/icons";
 
 export interface FileNode {
   path: string;
@@ -67,8 +68,31 @@ export function Tree(props: TreeProps) {
                   }
                 }}
               >
-                <span class="mr-1.5 opacity-60 text-[10px]">
-                  {node.isDir ? (node.expanded ? "▾" : "▸") : "•"}
+                <span class="mr-1 opacity-70 flex items-center">
+                  <Show
+                    when={node.isDir}
+                    fallback={<span class="w-3" />}
+                  >
+                    <Show
+                      when={node.expanded}
+                      fallback={<ChevronRightIcon class="h-3 w-3" />}
+                    >
+                      <ChevronDownIcon class="h-3 w-3" />
+                    </Show>
+                  </Show>
+                </span>
+                <span class="mr-1.5 opacity-80 flex items-center">
+                  <Show
+                    when={node.isDir}
+                    fallback={<FileIcon class="h-3.5 w-3.5 text-[var(--color-fg-muted)]" />}
+                  >
+                    <Show
+                      when={node.expanded}
+                      fallback={<FolderIcon class="h-3.5 w-3.5 text-[var(--color-accent)]" />}
+                    >
+                      <FolderOpenIcon class="h-3.5 w-3.5 text-[var(--color-accent)]" />
+                    </Show>
+                  </Show>
                 </span>
                 <span class="truncate">{node.name}</span>
               </div>

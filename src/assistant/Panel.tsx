@@ -5,6 +5,7 @@ import { streamLlm, type ChatMessage } from "../ai/provider";
 import { createStreamReducer } from "../ai/stream-reducer";
 import { AGENT_TOOLS, executeTool } from "../ai/tools";
 import { parseSearchReplaceBlocks, generateUnifiedDiff } from "../ai/edit-parser";
+import { CloseIcon, ChevronRightIcon } from "../ui/icons";
 
 export interface AssistantPanelProps {
   availableFiles: string[];
@@ -255,10 +256,10 @@ export function AssistantPanel(props: AssistantPanelProps) {
         </div>
         <button
           type="button"
-          class="text-xs text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer"
+          class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-0.5 rounded hover:bg-[var(--color-bg-active)] flex items-center justify-center"
           onClick={props.onClose}
         >
-          &times;
+          <CloseIcon class="h-3.5 w-3.5" />
         </button>
       </div>
 
@@ -267,10 +268,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
           <span class="text-[var(--color-fg-muted)]">No API key configured</span>
           <button
             type="button"
-            class="text-[var(--color-accent)] hover:underline font-medium cursor-pointer"
+            class="text-[var(--color-accent)] hover:underline font-medium cursor-pointer inline-flex items-center gap-1"
             onClick={props.onOpenSettings}
           >
-            Configure &rarr;
+            Configure
+            <ChevronRightIcon class="h-3 w-3" />
           </button>
         </div>
       </Show>

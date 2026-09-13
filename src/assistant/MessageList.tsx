@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import { DiffPreview } from "./DiffPreview";
+import { CheckIcon, UndoIcon } from "../ui/icons";
 import type { DiffLine } from "../ai/edit-parser";
 
 export interface ChatEntry {
@@ -88,14 +89,16 @@ export function MessageList(props: MessageListProps) {
                       }
                     >
                       <span class="text-[11px] text-[var(--color-success)] flex items-center gap-1 font-medium">
-                        <span>&#10003;</span> Applied
+                        <CheckIcon class="h-3.5 w-3.5" />
+                        <span>Applied</span>
                       </span>
                       <button
                         type="button"
-                        class="px-2.5 py-1 text-xs font-medium rounded bg-[var(--color-bg-panel)] text-[var(--color-fg-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] hover:text-[var(--color-fg-primary)] cursor-pointer"
+                        class="px-2.5 py-1 text-xs font-medium rounded bg-[var(--color-bg-panel)] text-[var(--color-fg-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] hover:text-[var(--color-fg-primary)] cursor-pointer flex items-center gap-1"
                         onClick={() => props.onRevertPatches?.(idx())}
                       >
-                        Revert Step
+                        <UndoIcon class="h-3 w-3 opacity-80" />
+                        <span>Revert Step</span>
                       </button>
                     </Show>
                   </div>

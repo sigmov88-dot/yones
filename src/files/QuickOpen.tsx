@@ -1,5 +1,6 @@
 import { createSignal, onMount, For, Show } from "solid-js";
 import type { FileNode } from "./Tree";
+import { FileIcon, SearchIcon } from "../ui/icons";
 
 export interface QuickOpenProps {
   files: FileNode[];
@@ -74,7 +75,8 @@ export function QuickOpen(props: QuickOpenProps) {
         class="w-full max-w-xl rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-raised)] shadow-2xl overflow-hidden"
         onKeyDown={handleKeyDown}
       >
-        <div class="p-2.5 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)]">
+        <div class="p-2.5 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] flex items-center gap-2">
+          <SearchIcon class="h-4 w-4 text-[var(--color-fg-muted)] shrink-0 ml-1" />
           <input
             ref={inputRef}
             type="text"
@@ -114,7 +116,7 @@ export function QuickOpen(props: QuickOpenProps) {
                   onMouseEnter={() => setSelectedIndex(idx())}
                 >
                   <div class="flex items-center gap-2 truncate">
-                    <span class="text-[var(--color-fg-muted)]">•</span>
+                    <FileIcon class="h-3.5 w-3.5 text-[var(--color-fg-muted)] shrink-0" />
                     <span class="truncate font-semibold">{file.name}</span>
                   </div>
                   <span class="text-[11px] text-[var(--color-fg-muted)] truncate max-w-xs opacity-70">
