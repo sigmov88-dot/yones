@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Lint, Test & Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 12.4.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Zero-hex Lint Check
+        run: pnpm lint
+
+      - name: Typecheck & Build Frontend
+        run: pnpm build
+
+      - name: Frontend Unit Tests
+        run: pnpm test
+
+      - name: Latency Benchmark
+        run: pnpm bench
+
+      - name: Rust Unit Tests (Path-jail & Atomic Apply)
+        run: cargo test --manifest-path src-tauri/Cargo.toml
