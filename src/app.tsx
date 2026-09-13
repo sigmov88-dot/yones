@@ -7,6 +7,8 @@ import { QuickOpen } from "./files/QuickOpen";
 import { SearchPanel } from "./files/SearchPanel";
 import { AssistantPanel } from "./assistant/Panel";
 import { StatusBar } from "./ui/StatusBar";
+import { ApiKeyModal } from "./settings/ApiKeyModal";
+import { fetchAllKeyStatuses } from "./settings/api-keys";
 
 interface OpenTab {
   path: string;
@@ -32,6 +34,17 @@ export function App() {
     errors: 0,
     warnings: 0,
   });
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [hasConfiguredKey, setHasConfiguredKey] = createSignal(true);
+
+  const checkApiKeys = async () => {
+    try {
+      const list = await fetchAllKeyStatuses();
+      setHasConfiguredKey(list.some((s) => s.is_set));
+    } catch {
+      setHasConfiguredKey(false);
+    }
+  };
 
   const toggleTheme = () => {
     const next = theme() === "dark" ? "light" : "dark";
@@ -202,6 +215,7 @@ export function App() {
       },
     ]);
     setActiveTabPath("welcome.ts");
+    void checkApiKeys();
   });
 
   onCleanup(() => {
@@ -236,6 +250,28 @@ export function App() {
         </div>
 
         <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="px-2 py-0.5 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
+            classList={{
+              "bg-[var(--color-accent)] text-white border-transparent": settingsOpen(),
+              "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
+                !settingsOpen(),
+            }}
+            onClick={() => setSettingsOpen(true)}
+            title="Configure API Keys & Model Providers"
+          >
+            <span>&#9881;</span>
+            <span>API Keys</span>
+            <span
+              class="h-1.5 w-1.5 rounded-full"
+              classList={{
+                "bg-[var(--color-success)]": hasConfiguredKey(),
+                "bg-[var(--color-warning)]": !hasConfiguredKey(),
+              }}
+            />
+          </button>
+
           <button
             type="button"
             class="px-2 py-0.5 text-xs rounded border transition-colors cursor-pointer"
@@ -364,6 +400,8 @@ export function App() {
             <AssistantPanel
               availableFiles={files().map((f) => f.path)}
               currentFilePath={activeTabPath() ?? undefined}
+              hasApiKey={hasConfiguredKey()}
+              onOpenSettings={() => setSettingsOpen(true)}
               onApplyMultiFilePatch={handleApplyMultiFilePatch}
               onRevertMultiFilePatch={handleRevertMultiFilePatch}
               onClose={() => setAssistantOpen(false)}
@@ -392,6 +430,14 @@ export function App() {
             void openFile(path);
           }}
           onClose={() => setQuickOpenOpen(false)}
+        />
+      </Show>
+
+      {/* Settings / API Keys Modal */}
+      <Show when={settingsOpen()}>
+        <ApiKeyModal
+          onClose={() => setSettingsOpen(false)}
+          onKeysUpdated={checkApiKeys}
         />
       </Show>
     </div>

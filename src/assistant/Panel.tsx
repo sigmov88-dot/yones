@@ -9,11 +9,13 @@ import { parseSearchReplaceBlocks, generateUnifiedDiff } from "../ai/edit-parser
 export interface AssistantPanelProps {
   availableFiles: string[];
   currentFilePath?: string;
+  hasApiKey?: boolean;
   onApplyMultiFilePatch: (
     patches: { filePath: string; blocks: { search: string; replace: string }[] }[],
     txId: string
   ) => Promise<boolean> | void;
   onRevertMultiFilePatch?: (txId: string, filePaths: string[]) => Promise<boolean> | void;
+  onOpenSettings?: () => void;
   onClose: () => void;
 }
 
@@ -259,6 +261,19 @@ export function AssistantPanel(props: AssistantPanelProps) {
           &times;
         </button>
       </div>
+
+      <Show when={props.hasApiKey === false}>
+        <div class="mx-3 mt-2 p-2.5 rounded border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] text-xs flex items-center justify-between">
+          <span class="text-[var(--color-fg-muted)]">No API key configured</span>
+          <button
+            type="button"
+            class="text-[var(--color-accent)] hover:underline font-medium cursor-pointer"
+            onClick={props.onOpenSettings}
+          >
+            Configure &rarr;
+          </button>
+        </div>
+      </Show>
 
       <MessageList
         messages={messages()}

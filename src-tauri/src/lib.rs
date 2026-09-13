@@ -76,18 +76,37 @@ async fn start_llm_stream(
         streams.insert(stream_id.clone(), cancel.clone());
     }
 
-    let is_anthropic = model.contains("claude") || !model.contains("ollama");
+    let is_anthropic = model.contains("claude") || (!model.contains("ollama") && !model.contains("gpt") && !model.contains("o1") && !model.contains("o3"));
     let state_clone = Arc::clone(&state);
 
     tokio::spawn(async move {
         if is_anthropic {
             let api_key = SecretManager::get_key("anthropic").unwrap_or_default();
+            if api_key.trim().is_empty() {
+                let _ = channel.send(LlmEvent::Error(
+                    "Anthropic API key is not configured. Please open Settings (⚙) and add your API key.".into(),
+                ));
+                let _ = channel.send(LlmEvent::Done);
+                return;
+            }
             let _ = state_clone
                 .llm
                 .stream_anthropic(&api_key, &model, &system, messages, tools, channel, cancel)
                 .await;
+        } else if model.contains("ollama") {
+            let _ = state_clone
+                .llm
+                .stream_openai("http://localhost:11434/v1/chat/completions", "", &model, &system, messages, channel, cancel)
+                .await;
         } else {
             let api_key = SecretManager::get_key("openai").unwrap_or_default();
+            if api_key.trim().is_empty() {
+                let _ = channel.send(LlmEvent::Error(
+                    "OpenAI API key is not configured. Please open Settings (⚙) and add your API key.".into(),
+                ));
+                let _ = channel.send(LlmEvent::Done);
+                return;
+            }
             let _ = state_clone
                 .llm
                 .stream_openai("", &api_key, &model, &system, messages, channel, cancel)
@@ -99,6 +118,35 @@ async fn start_llm_stream(
     });
 
     Ok(())
+}
+
+#[tauri::command]
+fn get_all_api_keys_status() -> Vec<secrets::KeyStatus> {
+    vec![
+        SecretManager::get_status("anthropic"),
+        SecretManager::get_status("openai"),
+        SecretManager::get_status("openrouter"),
+        SecretManager::get_status("gemini"),
+    ]
+}
+
+#[tauri::command]
+fn set_api_key(provider: String, key: String) -> Result<(), String> {
+    SecretManager::set_key(&provider, &key)
+}
+
+#[tauri::command]
+fn delete_api_key(provider: String) -> Result<(), String> {
+    SecretManager::delete_key(&provider)
+}
+
+#[tauri::command]
+async fn test_api_key(provider: String, key: Option<String>) -> Result<String, String> {
+    let target_key = match key {
+        Some(k) if !k.trim().is_empty() => k,
+        _ => SecretManager::get_key(&provider)?,
+    };
+    SecretManager::test_provider_key(&provider, &target_key).await
 }
 
 #[tauri::command]
@@ -199,6 +247,10 @@ pub fn run() {
             start_llm_stream,
             abort_stream,
             execute_agent_tool,
+            get_all_api_keys_status,
+            set_api_key,
+            delete_api_key,
+            test_api_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Yones IDE application");
