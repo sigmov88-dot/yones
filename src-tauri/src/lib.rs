@@ -173,12 +173,19 @@ async fn start_llm_stream(
                     let _ = channel.send(LlmEvent::Done);
                     return;
                 }
+                let resolved_model = if model.contains("3-8-flash") || model == "gemini-3-8-flash" {
+                    "gemini-2.0-flash".to_string()
+                } else if model.contains("cyber") {
+                    "gemini-1.5-pro".to_string()
+                } else {
+                    model
+                };
                 let _ = state_clone
                     .llm
                     .stream_openai_compatible(
                         "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
                         &api_key,
-                        &model,
+                        &resolved_model,
                         &system,
                         messages,
                         tools,
@@ -408,6 +415,29 @@ async fn fetch_provider_models(provider: String) -> Result<Vec<String>, String> 
                         if id.starts_with("gpt-") || id.starts_with("o1") || id.starts_with("o3") {
                             models.push(id.to_string());
                         }
+                    }
+                }
+            }
+            models.sort();
+            Ok(models)
+        }
+        "gemini" => {
+            let key = SecretManager::get_key("gemini").unwrap_or_default();
+            if key.trim().is_empty() {
+                return Err("Gemini API key is not configured".into());
+            }
+            let res = client
+                .get(format!("https://generativelanguage.googleapis.com/v1beta/models?key={}", key.trim()))
+                .send()
+                .await
+                .map_err(|e| format!("Gemini error: {}", e))?;
+            let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+            let mut models = Vec::new();
+            if let Some(arr) = json.get("models").and_then(|m| m.as_array()) {
+                for item in arr {
+                    if let Some(name) = item.get("name").and_then(|n| n.as_str()) {
+                        let clean = name.strip_prefix("models/").unwrap_or(name);
+                        models.push(clean.to_string());
                     }
                 }
             }

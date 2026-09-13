@@ -69,6 +69,95 @@ function calculateCost(model: string, inTok: number, outTok: number): number {
   return (inTok * inRate + outTok * outRate) / 1_000_000;
 }
 
+const geminiModelCache: { models: string[]; timestamp: number } = { models: [], timestamp: 0 };
+
+async function resolveActualModel(
+  provider: "anthropic" | "openai" | "openrouter" | "gemini" | "ollama",
+  model: string,
+  apiKey: string
+): Promise<string> {
+  if (provider === "gemini") {
+    try {
+      const now = Date.now();
+      if (now - geminiModelCache.timestamp > 120_000 || geminiModelCache.models.length === 0) {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}`);
+        if (res.ok) {
+          const data = (await res.json()) as {
+            models?: { name?: string; supportedGenerationMethods?: string[] }[];
+          };
+          const valid = (data.models || [])
+            .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+            .map((m) => (m.name || "").replace(/^models\//, ""))
+            .filter(Boolean);
+          if (valid.length > 0) {
+            geminiModelCache.models = valid;
+            geminiModelCache.timestamp = now;
+          }
+        }
+      }
+
+      if (geminiModelCache.models.length > 0) {
+        if (geminiModelCache.models.includes(model)) {
+          return model;
+        }
+
+        const isPro = model.toLowerCase().includes("pro") || model.toLowerCase().includes("cyber");
+        if (isPro) {
+          const proPriority = ["gemini-2.5-pro", "gemini-2.0-pro-exp-02-05", "gemini-1.5-pro"];
+          for (const p of proPriority) {
+            if (geminiModelCache.models.includes(p)) return p;
+          }
+        }
+
+        const flashPriority = [
+          "gemini-2.5-flash",
+          "gemini-2.0-flash",
+          "gemini-2.0-flash-exp",
+          "gemini-1.5-flash",
+          "gemini-1.5-flash-latest",
+        ];
+        for (const p of flashPriority) {
+          if (geminiModelCache.models.includes(p)) return p;
+        }
+        return geminiModelCache.models[0];
+      }
+    } catch {
+      // ignore network errors and fallback
+    }
+
+    if (model.includes("pro") || model.includes("cyber")) {
+      return "gemini-1.5-pro";
+    }
+    return "gemini-2.0-flash";
+  }
+
+  if (provider === "openai") {
+    if (model.includes("gpt-6") || model.includes("astra")) {
+      return "gpt-4o";
+    }
+    return model;
+  }
+
+  if (provider === "anthropic") {
+    if (model.includes("fable") || model.includes("mythos")) {
+      return "claude-3-7-sonnet-20250219";
+    }
+    return model;
+  }
+
+  if (provider === "openrouter") {
+    if (model.includes("deepseek-v4")) {
+      return "deepseek/deepseek-r1";
+    }
+    if (model.includes("qwen3.8")) {
+      return "qwen/qwen-2.5-coder-32b-instruct";
+    }
+    return model;
+  }
+
+  return model;
+}
+
 /**
  * Direct web browser SSE fetch fallback when running outside Tauri or in preview mode.
  */
@@ -77,7 +166,7 @@ async function* streamLlmWeb(
   tools: ToolDefinition[],
   options: StreamOptions
 ): AsyncIterable<LlmEvent> {
-  const model = options.model ?? "gpt-6-astra";
+  const model = options.model ?? "gemini-2.0-flash";
   const provider = options.provider ?? determineProvider(model);
   const apiKey = getStoredApiKey(provider) || "";
 
@@ -95,6 +184,8 @@ async function* streamLlmWeb(
     "You are the senior Yones IDE AI engineer agent. You output unified SEARCH/REPLACE blocks for file modifications.";
 
   try {
+    const resolvedModel = await resolveActualModel(provider, model, apiKey);
+
     if (provider === "anthropic") {
       const anthropicTools = tools.map((t) => ({
         name: t.name,
@@ -103,7 +194,7 @@ async function* streamLlmWeb(
       }));
 
       const payload: Record<string, unknown> = {
-        model,
+        model: resolvedModel,
         max_tokens: 4096,
         system,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -177,7 +268,7 @@ async function* streamLlmWeb(
                     payload: {
                       input_tokens: inTok,
                       output_tokens: outTok,
-                      cost_usd: calculateCost(model, inTok, outTok),
+                      cost_usd: calculateCost(resolvedModel, inTok, outTok),
                     },
                   };
                 }
@@ -229,7 +320,7 @@ async function* streamLlmWeb(
     }));
 
     const reqPayload: Record<string, unknown> = {
-      model,
+      model: resolvedModel,
       messages: allMessages,
       stream: true,
       stream_options: { include_usage: true },
@@ -238,7 +329,7 @@ async function* streamLlmWeb(
       reqPayload.tools = openAiTools;
     }
 
-    const res = await fetch(endpoint, {
+    let res = await fetch(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify(reqPayload),
@@ -247,16 +338,38 @@ async function* streamLlmWeb(
 
     if (!res.ok) {
       const errText = await res.text();
-      let errorMsg = `HTTP ${res.status}: ${errText}`;
-      try {
-        const parsed = JSON.parse(errText);
-        if (parsed.error?.message) errorMsg = parsed.error.message;
-      } catch {
-        // use raw
+      // If 404 from Gemini and not already using fallback, retry with gemini-2.0-flash or gemini-1.5-flash
+      if (res.status === 404 && provider === "gemini") {
+        const fallback = resolvedModel === "gemini-2.0-flash" ? "gemini-1.5-flash" : "gemini-2.0-flash";
+        reqPayload.model = fallback;
+        const retryRes = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(reqPayload),
+          signal: options.signal,
+        });
+        if (retryRes.ok) {
+          res = retryRes;
+        } else {
+          yield {
+            type: "Error",
+            payload: `Google Gemini error: Model '${resolvedModel}' was not found. Please select an available model (such as Gemini 2.0 Flash or Gemini 1.5 Flash) in Settings -> Models.`,
+          };
+          yield { type: "Done" };
+          return;
+        }
+      } else {
+        let errorMsg = `HTTP ${res.status}: ${errText}`;
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed.error?.message) errorMsg = parsed.error.message;
+        } catch {
+          // use raw
+        }
+        yield { type: "Error", payload: errorMsg };
+        yield { type: "Done" };
+        return;
       }
-      yield { type: "Error", payload: errorMsg };
-      yield { type: "Done" };
-      return;
     }
 
     const reader = res.body?.getReader();

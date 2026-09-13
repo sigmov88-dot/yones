@@ -14,40 +14,40 @@ export interface ModelInfo {
 }
 
 export const DEFAULT_MODELS: ModelInfo[] = [
-  // 🚀 Top Frontier Models (September 2026)
+  // 🚀 Top Frontier Models
   {
-    id: "gpt-6-astra",
-    name: "GPT-6 Astra",
-    provider: "openai",
+    id: "gemini-2.0-flash",
+    name: "Gemini 2.0 Flash",
+    provider: "gemini",
     enabled: false,
-    description: "Flagship autonomous agent for multi-step tasks, research, code & cybersec",
-    context: "256k",
+    description: "Google's fast multimodal model with native tool use and low latency",
+    context: "1M",
     category: "frontier",
   },
   {
-    id: "claude-fable-5-1",
-    name: "Claude Fable 5.1",
-    provider: "anthropic",
+    id: "gemini-2.5-flash",
+    name: "Gemini 2.5 Flash (Thinking)",
+    provider: "gemini",
     enabled: false,
-    description: "Premier coding & long-horizon reasoning, self-verifying autonomous agent",
-    context: "500k",
+    description: "Frontier reasoning & agentic software engineering with adaptive thinking",
+    context: "1M",
     category: "frontier",
   },
   {
-    id: "claude-mythos-5-1",
-    name: "Claude Mythos 5.1",
-    provider: "anthropic",
+    id: "gemini-1.5-pro",
+    name: "Gemini 1.5 Pro",
+    provider: "gemini",
     enabled: false,
-    description: "Deep research & cybersecurity evaluation tier",
-    context: "500k",
+    description: "Massive 2M token context window for repo-wide analysis and architecture",
+    context: "2M",
     category: "frontier",
   },
   {
     id: "gemini-3-8-flash",
-    name: "Gemini 3.8 Flash",
+    name: "Gemini 3.8 Flash (Preview)",
     provider: "gemini",
     enabled: false,
-    description: "Agentic software engineering with top benchmarks in long-horizon dev tasks",
+    description: "Agentic software engineering with top benchmarks (auto-mapped to Google Flash tier)",
     context: "1M",
     category: "frontier",
   },
@@ -58,6 +58,69 @@ export const DEFAULT_MODELS: ModelInfo[] = [
     enabled: false,
     description: "Cybersecurity specialist for vulnerability finding and patching",
     context: "1M",
+    category: "frontier",
+  },
+  {
+    id: "gpt-4o",
+    name: "GPT-4o",
+    provider: "openai",
+    enabled: false,
+    description: "High-intelligence flagship omni model for complex coding and analysis",
+    context: "128k",
+    category: "frontier",
+  },
+  {
+    id: "o3-mini",
+    name: "o3-mini (Reasoning)",
+    provider: "openai",
+    enabled: false,
+    description: "STEM and coding specialist with visible reasoning chain and low latency",
+    context: "200k",
+    category: "frontier",
+  },
+  {
+    id: "gpt-6-astra",
+    name: "GPT-6 Astra (Preview)",
+    provider: "openai",
+    enabled: false,
+    description: "Flagship autonomous agent for multi-step tasks (auto-mapped to OpenAI reasoning/omni)",
+    context: "256k",
+    category: "frontier",
+  },
+  {
+    id: "claude-3-7-sonnet-20250219",
+    name: "Claude 3.7 Sonnet (Thinking)",
+    provider: "anthropic",
+    enabled: false,
+    description: "Hybrid reasoning and coding model with extended thinking capabilities",
+    context: "200k",
+    category: "frontier",
+  },
+  {
+    id: "claude-3-5-sonnet-20241022",
+    name: "Claude 3.5 Sonnet",
+    provider: "anthropic",
+    enabled: false,
+    description: "Industry standard for code generation and agentic tool use",
+    context: "200k",
+    category: "frontier",
+  },
+  {
+    id: "claude-fable-5-1",
+    name: "Claude Fable 5.1 (Preview)",
+    provider: "anthropic",
+    enabled: false,
+    description: "Premier coding & long-horizon reasoning (auto-mapped to Claude 3.7 Sonnet)",
+    context: "500k",
+    category: "frontier",
+  },
+  {
+    id: "claude-mythos-5-1",
+    name: "Claude Mythos 5.1",
+    provider: "anthropic",
+    enabled: false,
+    description: "Deep research & cybersecurity evaluation tier",
+    context: "500k",
     category: "frontier",
   },
   {
@@ -399,7 +462,41 @@ export async function fetchRemoteModels(provider: ModelProvider): Promise<string
     return await invoke<string[]>("fetch_provider_models", { provider });
   } catch (err) {
     // Direct fetch fallback in web dev mode
-    if (provider === "ollama") {
+    if (provider === "gemini") {
+      try {
+        const apiKey = typeof localStorage !== "undefined" ? localStorage.getItem("yones_api_key_gemini") : null;
+        if (apiKey) {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}`);
+          if (res.ok) {
+            const data = (await res.json()) as { models?: { name?: string; supportedGenerationMethods?: string[] }[] };
+            return (data.models || [])
+              .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+              .map((m) => (m.name || "").replace(/^models\//, ""))
+              .filter(Boolean);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    } else if (provider === "openai") {
+      try {
+        const apiKey = typeof localStorage !== "undefined" ? localStorage.getItem("yones_api_key_openai") : null;
+        if (apiKey) {
+          const res = await fetch("https://api.openai.com/v1/models", {
+            headers: { Authorization: `Bearer ${apiKey.trim()}` },
+          });
+          if (res.ok) {
+            const data = (await res.json()) as { data?: { id?: string }[] };
+            return (data.data || [])
+              .map((m) => m.id || "")
+              .filter((id) => id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3"))
+              .sort();
+          }
+        }
+      } catch {
+        // ignore
+      }
+    } else if (provider === "ollama") {
       try {
         const res = await fetch("http://localhost:11434/api/tags");
         if (res.ok) {
