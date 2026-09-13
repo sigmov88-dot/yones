@@ -9,7 +9,17 @@ import { AssistantPanel } from "./assistant/Panel";
 import { StatusBar } from "./ui/StatusBar";
 import { ApiKeyModal } from "./settings/ApiKeyModal";
 import { fetchAllKeyStatuses } from "./settings/api-keys";
-import { SparklesIcon, FolderIcon, SearchIcon, CloseIcon, KeyIcon } from "./ui/icons";
+import { getActiveModel, type ModelInfo } from "./settings/models";
+import {
+  SparklesIcon,
+  FolderIcon,
+  SearchIcon,
+  CloseIcon,
+  SunIcon,
+  MoonIcon,
+  GearIcon,
+  ChevronRightIcon,
+} from "./ui/icons";
 
 interface OpenTab {
   path: string;
@@ -38,6 +48,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [settingsTab, setSettingsTab] = createSignal<"keys" | "models">("keys");
   const [hasConfiguredKey, setHasConfiguredKey] = createSignal(true);
+  const [activeModel, setActiveModel] = createSignal<ModelInfo | null>(getActiveModel());
 
   const checkApiKeys = async () => {
     try {
@@ -46,6 +57,10 @@ export function App() {
     } catch {
       setHasConfiguredKey(false);
     }
+  };
+
+  const updateActiveModel = () => {
+    setActiveModel(getActiveModel());
   };
 
   const toggleTheme = () => {
@@ -226,12 +241,15 @@ export function App() {
 
   onMount(() => {
     window.addEventListener("keydown", handleGlobalKeyDown);
+    window.addEventListener("yones-active-model-changed", updateActiveModel);
+    window.addEventListener("yones-model-registry-updated", updateActiveModel);
+
     // Initialize default welcome tab
     setTabs([
       {
         path: "welcome.ts",
         name: "welcome.ts",
-        content: `// Welcome to Yones IDE (v2)\n// High-performance desktop code editor with embedded AI agent.\n//\n// Shortcuts:\n//   Cmd+O       - Open Folder\n//   Cmd+K       - Inline AI Edit\n//   Cmd+L       - Assistant Panel\n//   Tab         - Accept Ghost Completion\n//   Esc         - Cancel / Close\n`,
+        content: `// Welcome to Yones IDE\n// High-performance AI-first Code Editor with embedded frontier intelligence.\n//\n// Shortcuts:\n//   Cmd+P / Ctrl+P     - Quick Open File\n//   Cmd+O / Ctrl+O     - Open Project Folder\n//   Cmd+L / Ctrl+L     - Open AI Assistant\n//   Cmd+K / Ctrl+K     - Inline AI Code Edit\n//   Cmd+Shift+F        - Global Project Search\n//   Tab                - Accept Ghost Completion\n//   Esc                - Dismiss popup / Close panel\n`,
         isModified: false,
       },
     ]);
@@ -241,127 +259,224 @@ export function App() {
 
   onCleanup(() => {
     window.removeEventListener("keydown", handleGlobalKeyDown);
+    window.removeEventListener("yones-active-model-changed", updateActiveModel);
+    window.removeEventListener("yones-model-registry-updated", updateActiveModel);
   });
 
   return (
     <div class="h-screen w-screen flex flex-col bg-[var(--color-bg-editor)] text-[var(--color-fg-primary)] overflow-hidden font-sans">
       {/* Top Application Bar */}
-      <header class="h-9 w-full bg-[var(--color-bg-panel)] border-b border-[var(--color-border-subtle)] flex items-center justify-between px-3 select-none">
-        <div class="flex items-center gap-2">
-          <span class="font-bold text-xs tracking-wider text-[var(--color-fg-primary)]">YONES</span>
-          <span class="text-[10px] text-[var(--color-fg-muted)]">v2.0</span>
+      <header class="h-10 w-full bg-[var(--color-bg-panel)] border-b border-[var(--color-border-subtle)] flex items-center justify-between px-3 select-none">
+        {/* Left: Brand & Workspace Folder */}
+        <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-1.5">
+            <span class="h-2 w-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
+            <span class="font-bold text-xs tracking-wider text-[var(--color-fg-primary)]">YONES</span>
+            <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-[var(--color-bg-editor)] border border-[var(--color-border-subtle)] text-[var(--color-fg-muted)]">
+              v2.1
+            </span>
+          </div>
+
+          <span class="text-[var(--color-border-subtle)] opacity-70">/</span>
+
           <button
             type="button"
-            class="ml-2 px-2.5 py-1 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)] flex items-center gap-1.5"
+            class="px-2 py-1 text-xs rounded-md bg-[var(--color-bg-raised)] hover:bg-[var(--color-bg-active)] border border-[var(--color-border-subtle)] text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)] flex items-center gap-1.5 transition-all cursor-pointer truncate max-w-[200px]"
             onClick={handleOpenFolder}
+            title={projectRoot() ?? "Open Workspace Folder (Cmd+O)"}
           >
-            <FolderIcon class="h-3.5 w-3.5 opacity-80" />
-            <span>Open Folder (Cmd+O)</span>
-          </button>
-          <button
-            type="button"
-            class="px-2.5 py-1 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)] flex items-center gap-1.5"
-            onClick={() => setQuickOpenOpen(true)}
-          >
-            <SearchIcon class="h-3.5 w-3.5 opacity-80" />
-            <span>Quick Open (Cmd+P)</span>
+            <FolderIcon class="h-3.5 w-3.5 text-[var(--color-accent)] shrink-0" />
+            <span class="truncate">
+              {projectRoot() ? projectRoot()!.split(/[/\\]/).pop() : "Open Folder"}
+            </span>
           </button>
         </div>
 
-        <div class="text-xs text-[var(--color-fg-muted)] truncate max-w-sm">
-          {projectRoot() ?? "No folder open"}
-        </div>
+        {/* Center: Command Palette / Quick Open search bar */}
+        <button
+          type="button"
+          class="flex items-center justify-between w-80 max-w-sm px-3 py-1 rounded-md bg-[var(--color-bg-editor)] hover:bg-[var(--color-bg-raised)] border border-[var(--color-border-subtle)] hover:border-[var(--color-border)] text-xs text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)] shadow-sm transition-all cursor-pointer group"
+          onClick={() => setQuickOpenOpen(true)}
+        >
+          <div class="flex items-center gap-2 truncate">
+            <SearchIcon class="h-3.5 w-3.5 opacity-70 group-hover:text-[var(--color-accent)] transition-colors" />
+            <span class="truncate">Search files, symbols (Ctrl+P)...</span>
+          </div>
+          <kbd class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-panel)] border border-[var(--color-border-subtle)] text-[var(--color-fg-muted)] shrink-0">
+            ⌘P
+          </kbd>
+        </button>
 
-        <div class="flex items-center gap-2">
+        {/* Right: Active Model, Assistant Toggle, Settings */}
+        <div class="flex items-center gap-1.5">
+          {/* Active Model Pill */}
           <button
             type="button"
-            class="px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
+            class="px-2.5 py-1 text-xs rounded-md border transition-all cursor-pointer flex items-center gap-1.5"
             classList={{
-              "bg-[var(--color-accent)] text-white border-transparent": settingsOpen() && settingsTab() === "models",
-              "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
-                !(settingsOpen() && settingsTab() === "models"),
+              "bg-[var(--color-bg-raised)] text-[var(--color-fg-primary)] border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-active)]":
+                !!activeModel(),
+              "bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-[var(--color-warning)]/30 hover:bg-[var(--color-warning)]/20":
+                !activeModel(),
             }}
             onClick={() => {
               setSettingsTab("models");
               setSettingsOpen(true);
             }}
-            title="Configure & Toggle AI Models (Cursor-style)"
+            title="Configure AI Models (Cursor-style)"
           >
-            <SparklesIcon class="h-3.5 w-3.5" />
-            <span>Models</span>
+            <SparklesIcon class="h-3.5 w-3.5 text-[var(--color-accent)]" />
+            <span class="truncate max-w-[130px] font-medium">
+              {activeModel() ? activeModel()!.name : "Configure Model"}
+            </span>
           </button>
 
+          {/* AI Assistant Toggle Button */}
           <button
             type="button"
-            class="px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
+            class="px-2.5 py-1 text-xs rounded-md border transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
             classList={{
-              "bg-[var(--color-accent)] text-white border-transparent": settingsOpen() && settingsTab() === "keys",
-              "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
-                !(settingsOpen() && settingsTab() === "keys"),
+              "bg-[var(--color-accent)] text-white border-transparent font-medium": assistantOpen(),
+              "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border-subtle)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-active)]":
+                !assistantOpen(),
             }}
+            onClick={() => setAssistantOpen((prev) => !prev)}
+            title="Toggle AI Assistant (Cmd+L)"
+          >
+            <SparklesIcon class="h-3.5 w-3.5" />
+            <span>Assistant</span>
+            <kbd
+              class="font-mono text-[9px] px-1 py-0.2 rounded opacity-80"
+              classList={{
+                "bg-black/20": assistantOpen(),
+                "bg-[var(--color-bg-panel)]": !assistantOpen(),
+              }}
+            >
+              ⌘L
+            </kbd>
+          </button>
+
+          {/* Settings Button */}
+          <button
+            type="button"
+            class="p-1.5 rounded-md text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-raised)] border border-transparent hover:border-[var(--color-border-subtle)] transition-all cursor-pointer"
             onClick={() => {
               setSettingsTab("keys");
               setSettingsOpen(true);
             }}
-            title="Configure API Keys & Model Providers"
+            title="Settings (API Keys & Preferences)"
           >
-            <KeyIcon class="h-3.5 w-3.5" />
-            <span>API Keys</span>
-            <span
-              class="h-1.5 w-1.5 rounded-full"
-              classList={{
-                "bg-[var(--color-success)]": hasConfiguredKey(),
-                "bg-[var(--color-warning)]": !hasConfiguredKey(),
-              }}
-            />
-          </button>
-
-          <button
-            type="button"
-            class="px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
-            classList={{
-              "bg-[var(--color-accent)] text-white border-transparent": assistantOpen(),
-              "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
-                !assistantOpen(),
-            }}
-            onClick={() => setAssistantOpen((prev) => !prev)}
-          >
-            <SparklesIcon class="h-3.5 w-3.5" />
-            <span>Assistant (Cmd+L)</span>
+            <GearIcon class="h-4 w-4" />
           </button>
         </div>
       </header>
 
       {/* Main Workspace Area */}
       <div class="flex-1 flex overflow-hidden">
-        {/* Left Sidebar (Files / Search) */}
-        <div class="w-64 h-full flex-shrink-0 flex flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)]">
-          {/* Sidebar Tab Header */}
-          <div class="h-8 flex items-center border-b border-[var(--color-border-subtle)] px-2 gap-1 select-none">
+        {/* Left Activity Bar */}
+        <div class="w-11 h-full flex-shrink-0 flex flex-col items-center justify-between py-2 border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] z-10 select-none">
+          <div class="flex flex-col items-center gap-1.5 w-full">
+            {/* Files Tab Button */}
             <button
               type="button"
-              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors flex items-center gap-1.5"
+              class="w-8 h-8 rounded-md flex items-center justify-center transition-all cursor-pointer relative"
               classList={{
-                "bg-[var(--color-bg-active)] text-[var(--color-fg-primary)]": sidebarTab() === "files",
-                "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)]": sidebarTab() !== "files",
+                "text-[var(--color-fg-primary)] bg-[var(--color-bg-active)]": sidebarTab() === "files",
+                "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-raised)]":
+                  sidebarTab() !== "files",
               }}
               onClick={() => setSidebarTab("files")}
+              title="Explorer (Cmd+Shift+E)"
             >
-              <FolderIcon class="h-3.5 w-3.5 opacity-80" />
-              <span>Files</span>
+              <FolderIcon class="h-4 w-4" />
+              <Show when={sidebarTab() === "files"}>
+                <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-[var(--color-accent)]" />
+              </Show>
             </button>
+
+            {/* Search Tab Button */}
             <button
               type="button"
-              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors flex items-center gap-1.5"
+              class="w-8 h-8 rounded-md flex items-center justify-center transition-all cursor-pointer relative"
               classList={{
-                "bg-[var(--color-bg-active)] text-[var(--color-fg-primary)]": sidebarTab() === "search",
-                "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)]": sidebarTab() !== "search",
+                "text-[var(--color-fg-primary)] bg-[var(--color-bg-active)]": sidebarTab() === "search",
+                "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-raised)]":
+                  sidebarTab() !== "search",
               }}
               onClick={() => setSidebarTab("search")}
+              title="Search in Files (Cmd+Shift+F)"
             >
-              <SearchIcon class="h-3.5 w-3.5 opacity-80" />
-              <span>Search (Cmd+Shift+F)</span>
+              <SearchIcon class="h-4 w-4" />
+              <Show when={sidebarTab() === "search"}>
+                <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-[var(--color-accent)]" />
+              </Show>
             </button>
+
+            {/* AI Assistant Toggle Button */}
+            <button
+              type="button"
+              class="w-8 h-8 rounded-md flex items-center justify-center transition-all cursor-pointer relative"
+              classList={{
+                "text-[var(--color-accent)] bg-[var(--color-bg-active)]": assistantOpen(),
+                "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-raised)]":
+                  !assistantOpen(),
+              }}
+              onClick={() => setAssistantOpen((prev) => !prev)}
+              title="AI Assistant (Cmd+L)"
+            >
+              <SparklesIcon class="h-4 w-4" />
+              <Show when={assistantOpen()}>
+                <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-[var(--color-accent)]" />
+              </Show>
+            </button>
+          </div>
+
+          <div class="flex flex-col items-center gap-1.5 w-full">
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              class="w-8 h-8 rounded-md flex items-center justify-center text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-raised)] transition-all cursor-pointer"
+              onClick={toggleTheme}
+              title="Toggle Theme"
+            >
+              <Show when={theme() === "dark"} fallback={<MoonIcon class="h-4 w-4" />}>
+                <SunIcon class="h-4 w-4" />
+              </Show>
+            </button>
+
+            {/* Settings Button */}
+            <button
+              type="button"
+              class="w-8 h-8 rounded-md flex items-center justify-center text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-raised)] transition-all cursor-pointer relative"
+              onClick={() => {
+                setSettingsTab("keys");
+                setSettingsOpen(true);
+              }}
+              title="Settings (API Keys & Models)"
+            >
+              <GearIcon class="h-4 w-4" />
+              <span
+                class="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full"
+                classList={{
+                  "bg-[var(--color-success)]": hasConfiguredKey(),
+                  "bg-[var(--color-warning)]": !hasConfiguredKey(),
+                }}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Sidebar Panel (Files / Search Drawer) */}
+        <div class="w-60 h-full flex-shrink-0 flex flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] overflow-hidden">
+          <div class="h-8 flex items-center justify-between border-b border-[var(--color-border-subtle)] px-3 select-none">
+            <span class="text-[11px] font-bold tracking-wider text-[var(--color-fg-muted)] uppercase">
+              {sidebarTab() === "files" ? "Explorer" : "Search"}
+            </span>
+            <Show when={sidebarTab() === "files" && projectRoot()}>
+              <span class="text-[10px] text-[var(--color-fg-muted)] font-mono truncate max-w-[110px]">
+                {projectRoot()!.split(/[/\\]/).pop()}
+              </span>
+            </Show>
           </div>
 
           <div class="flex-1 overflow-hidden">
@@ -386,44 +501,158 @@ export function App() {
         </div>
 
         {/* Editor Area (Center) */}
-        <div class="flex-1 flex flex-col h-full overflow-hidden">
+        <div class="flex-1 flex flex-col h-full overflow-hidden bg-[var(--color-bg-editor)]">
           {/* Tabs Bar */}
-          <div class="h-8 w-full bg-[var(--color-bg-panel)] border-b border-[var(--color-border-subtle)] flex items-center overflow-x-auto px-1">
+          <div class="h-8 w-full bg-[var(--color-bg-panel)] border-b border-[var(--color-border-subtle)] flex items-center overflow-x-auto px-1 select-none">
             <For each={tabs()}>
-              {(tab) => (
-                <div
-                  class="h-7 px-3 flex items-center gap-2 text-xs border-r border-[var(--color-border-subtle)] cursor-pointer select-none group"
-                  classList={{
-                    "bg-[var(--color-bg-editor)] text-[var(--color-fg-primary)] border-t-2 border-t-[var(--color-accent)] font-medium":
-                      activeTabPath() === tab.path,
-                    "text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-fg-secondary)]":
-                      activeTabPath() !== tab.path,
-                  }}
-                  onClick={() => setActiveTabPath(tab.path)}
-                >
-                  <span class="truncate max-w-[120px]">{tab.name}</span>
-                  <Show when={tab.isModified}>
-                    <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] shrink-0" title="Unsaved changes" />
-                  </Show>
-                  <button
-                    type="button"
-                    class="opacity-0 group-hover:opacity-100 text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] p-0.5 rounded hover:bg-[var(--color-bg-panel)] flex items-center justify-center"
-                    onClick={(e) => closeTab(tab.path, e)}
+              {(tab) => {
+                const isActive = () => activeTabPath() === tab.path;
+                return (
+                  <div
+                    class="h-7 px-2.5 flex items-center gap-2 text-xs border-r border-[var(--color-border-subtle)] cursor-pointer select-none group transition-colors relative"
+                    classList={{
+                      "bg-[var(--color-bg-editor)] text-[var(--color-fg-primary)] font-medium": isActive(),
+                      "text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-raised)] hover:text-[var(--color-fg-secondary)]":
+                        !isActive(),
+                    }}
+                    onClick={() => setActiveTabPath(tab.path)}
                   >
-                    <CloseIcon class="h-3 w-3" />
-                  </button>
-                </div>
-              )}
+                    {/* Active Accent Top Indicator */}
+                    <Show when={isActive()}>
+                      <span class="absolute top-0 left-0 right-0 h-[2px] bg-[var(--color-accent)]" />
+                    </Show>
+
+                    <span class="truncate max-w-[130px]">{tab.name}</span>
+                    <Show when={tab.isModified}>
+                      <span
+                        class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] shrink-0"
+                        title="Unsaved changes"
+                      />
+                    </Show>
+                    <button
+                      type="button"
+                      class="opacity-0 group-hover:opacity-100 text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] p-0.5 rounded hover:bg-[var(--color-bg-active)] flex items-center justify-center transition-opacity"
+                      classList={{ "opacity-80": isActive() }}
+                      onClick={(e) => closeTab(tab.path, e)}
+                    >
+                      <CloseIcon class="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              }}
             </For>
           </div>
+
+          {/* Breadcrumb path navigation bar */}
+          <Show when={activeTab()}>
+            <div class="h-6 w-full bg-[var(--color-bg-editor)] border-b border-[var(--color-border-subtle)]/40 px-3 flex items-center gap-1.5 text-[11px] text-[var(--color-fg-muted)] select-none">
+              <FolderIcon class="h-3 w-3 opacity-60" />
+              <span class="hover:text-[var(--color-fg-primary)] transition-colors cursor-pointer">
+                {projectRoot() ? projectRoot()!.split(/[/\\]/).pop() : "workspace"}
+              </span>
+              <ChevronRightIcon class="h-2.5 w-2.5 opacity-40" />
+              <span class="text-[var(--color-fg-primary)] font-medium truncate max-w-sm">
+                {activeTab()?.path}
+              </span>
+            </div>
+          </Show>
 
           {/* Editor Canvas */}
           <div class="flex-1 h-full w-full overflow-hidden">
             <Show
               when={activeTab()}
               fallback={
-                <div class="h-full flex items-center justify-center text-xs text-[var(--color-fg-muted)]">
-                  Press Cmd+O to open a project directory or Cmd+P to quick open a file.
+                <div class="h-full w-full flex flex-col items-center justify-center p-8 select-none bg-[var(--color-bg-editor)]">
+                  <div class="max-w-md w-full text-center space-y-6">
+                    <div class="flex flex-col items-center gap-3">
+                      <div class="h-14 w-14 rounded-2xl bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent)]/5 border border-[var(--color-accent)]/30 flex items-center justify-center shadow-lg">
+                        <SparklesIcon class="h-7 w-7 text-[var(--color-accent)]" />
+                      </div>
+                      <div>
+                        <h1 class="text-base font-semibold text-[var(--color-fg-primary)] tracking-wide">
+                          YONES IDE
+                        </h1>
+                        <p class="text-xs text-[var(--color-fg-muted)] mt-0.5">
+                          High-performance AI-first Code Editor
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Shortcuts Cheat Sheet */}
+                    <div class="grid grid-cols-2 gap-2 text-left">
+                      <button
+                        type="button"
+                        class="p-2.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] hover:bg-[var(--color-bg-active)] hover:border-[var(--color-accent)]/40 transition-all cursor-pointer text-xs group"
+                        onClick={() => setQuickOpenOpen(true)}
+                      >
+                        <div class="flex items-center justify-between">
+                          <span class="font-medium text-[var(--color-fg-primary)] group-hover:text-[var(--color-accent)]">
+                            Quick Open
+                          </span>
+                          <kbd class="font-mono text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg-editor)] border border-[var(--color-border-subtle)] text-[var(--color-fg-muted)]">
+                            ⌘P
+                          </kbd>
+                        </div>
+                        <div class="text-[11px] text-[var(--color-fg-muted)] mt-1">
+                          Jump to any file in project
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="p-2.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] hover:bg-[var(--color-bg-active)] hover:border-[var(--color-accent)]/40 transition-all cursor-pointer text-xs group"
+                        onClick={handleOpenFolder}
+                      >
+                        <div class="flex items-center justify-between">
+                          <span class="font-medium text-[var(--color-fg-primary)] group-hover:text-[var(--color-accent)]">
+                            Open Folder
+                          </span>
+                          <kbd class="font-mono text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg-editor)] border border-[var(--color-border-subtle)] text-[var(--color-fg-muted)]">
+                            ⌘O
+                          </kbd>
+                        </div>
+                        <div class="text-[11px] text-[var(--color-fg-muted)] mt-1">
+                          Load workspace directory
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="p-2.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] hover:bg-[var(--color-bg-active)] hover:border-[var(--color-accent)]/40 transition-all cursor-pointer text-xs group"
+                        onClick={() => setAssistantOpen(true)}
+                      >
+                        <div class="flex items-center justify-between">
+                          <span class="font-medium text-[var(--color-fg-primary)] group-hover:text-[var(--color-accent)]">
+                            AI Assistant
+                          </span>
+                          <kbd class="font-mono text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg-editor)] border border-[var(--color-border-subtle)] text-[var(--color-fg-muted)]">
+                            ⌘L
+                          </kbd>
+                        </div>
+                        <div class="text-[11px] text-[var(--color-fg-muted)] mt-1">
+                          Pair program with frontier models
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="p-2.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] hover:bg-[var(--color-bg-active)] hover:border-[var(--color-accent)]/40 transition-all cursor-pointer text-xs group"
+                        onClick={() => setSidebarTab("search")}
+                      >
+                        <div class="flex items-center justify-between">
+                          <span class="font-medium text-[var(--color-fg-primary)] group-hover:text-[var(--color-accent)]">
+                            Global Search
+                          </span>
+                          <kbd class="font-mono text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg-editor)] border border-[var(--color-border-subtle)] text-[var(--color-fg-muted)]">
+                            ⌘⇧F
+                          </kbd>
+                        </div>
+                        <div class="text-[11px] text-[var(--color-fg-muted)] mt-1">
+                          Regex search across workspace
+                        </div>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               }
             >
@@ -447,32 +676,39 @@ export function App() {
 
         {/* Assistant Sidebar (Right Panel, Cmd+L) */}
         <Show when={assistantOpen()}>
-          <div class="w-80 h-full flex-shrink-0">
+          <div class="w-80 h-full flex-shrink-0 shadow-2xl">
             <AssistantPanel
               availableFiles={files().map((f) => f.path)}
               currentFilePath={activeTabPath() ?? undefined}
               hasApiKey={hasConfiguredKey()}
+              onApplyMultiFilePatch={handleApplyMultiFilePatch}
+              onRevertMultiFilePatch={handleRevertMultiFilePatch}
               onOpenSettings={(tab) => {
                 setSettingsTab(tab ?? "keys");
                 setSettingsOpen(true);
               }}
-              onApplyMultiFilePatch={handleApplyMultiFilePatch}
-              onRevertMultiFilePatch={handleRevertMultiFilePatch}
               onClose={() => setAssistantOpen(false)}
             />
           </div>
         </Show>
       </div>
 
-      {/* Status Bar (Bottom) */}
+      {/* Status Bar */}
       <StatusBar
-        gitBranch={gitBranch()}
         theme={theme()}
         onToggleTheme={toggleTheme}
+        gitBranch={gitBranch()}
         errorCount={diagnosticsCount().errors}
         warningCount={diagnosticsCount().warnings}
-        sessionCostUsd={sessionCost()}
+        language={activeTab() ? activeTab()!.name.split(".").pop()?.toUpperCase() : "TypeScript"}
         tokensTotal={totalTokens()}
+        sessionCostUsd={sessionCost()}
+        activeModelName={activeModel()?.name}
+        typingLatencyMs={0.005}
+        onOpenModelSettings={() => {
+          setSettingsTab("models");
+          setSettingsOpen(true);
+        }}
       />
 
       {/* Quick Open Modal (Cmd+P) */}
@@ -480,19 +716,20 @@ export function App() {
         <QuickOpen
           files={files()}
           onSelect={(path) => {
-            setActiveTabTargetLine(undefined);
+            setQuickOpenOpen(false);
             void openFile(path);
           }}
           onClose={() => setQuickOpenOpen(false)}
         />
       </Show>
 
-      {/* Settings / API Keys Modal */}
+      {/* Settings Modal (API Keys & Models) */}
       <Show when={settingsOpen()}>
         <ApiKeyModal
           initialTab={settingsTab()}
           onClose={() => setSettingsOpen(false)}
           onKeysUpdated={checkApiKeys}
+          onModelsUpdated={updateActiveModel}
         />
       </Show>
     </div>

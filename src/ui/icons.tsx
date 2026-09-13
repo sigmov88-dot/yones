@@ -497,3 +497,121 @@ export function TrashIcon(props: IconProps) {
   );
 }
 
+export function SendIcon(props: IconProps) {
+  const size = () => props.size ?? 13;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
+    </svg>
+  );
+}
+
+export function SquareIcon(props: IconProps) {
+  const size = () => props.size ?? 12;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="none"
+      class={props.class}
+    >
+      <rect width="16" height="16" x="4" y="4" rx="2" />
+    </svg>
+  );
+}
+
+export function PlusIcon(props: IconProps) {
+  const size = () => props.size ?? 13;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+export function RefreshCwIcon(props: IconProps) {
+  const size = () => props.size ?? 13;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  );
+}
+
+export function TerminalIcon(props: IconProps) {
+  const size = () => props.size ?? 13;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
+  );
+}
+
+export function CodeIcon(props: IconProps) {
+  const size = () => props.size ?? 13;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
