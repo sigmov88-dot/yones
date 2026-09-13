@@ -96,7 +96,7 @@ impl LlmService {
                             let _ = channel.send(LlmEvent::Error(format!("Anthropic API {}: {}", status, text)));
                             return Err(format!("API error {}", status));
                         }
-                        Err(err) if attempt < 3 => {
+                        Err(_err) if attempt < 3 => {
                             tokio::time::sleep(backoff).await;
                             backoff *= 2;
                         }

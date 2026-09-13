@@ -37,6 +37,6 @@ impl SecretManager {
 
     pub fn delete_key(provider: &str) -> Result<(), String> {
         let entry = Entry::new(SERVICE_NAME, provider).map_err(|e| e.to_string())?;
-        entry.delete_password().map_err(|e| e.to_string())
+        entry.delete_credential().map_err(|e| e.to_string())
     }
 }

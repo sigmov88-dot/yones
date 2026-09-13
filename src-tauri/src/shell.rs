@@ -36,7 +36,7 @@ impl ShellRunner {
             ));
         }
 
-        let mut child = Command::new(cmd)
+        let child = Command::new(cmd)
             .args(args)
             .current_dir(root)
             .stdout(Stdio::piped())
@@ -52,7 +52,7 @@ impl ShellRunner {
                 .map_err(|e| format!("Process error: {}", e))?;
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
-            Ok(format!("{}\n{}", stdout, stderr))
+            Ok::<String, String>(format!("{}\n{}", stdout, stderr))
         };
 
         match timeout(Duration::from_secs(60), execution).await {

@@ -28,7 +28,7 @@ pub struct AppState {
 }
 
 #[tauri::command]
-pub async fn list_project_files(root: String, state: State<'_, Arc<AppState>>) -> Result<Vec<FileNodeInfo>, String> {
+async fn list_project_files(root: String, state: State<'_, Arc<AppState>>) -> Result<Vec<FileNodeInfo>, String> {
     {
         let mut p_root = state.project_root.lock().unwrap();
         *p_root = Some(root.clone());
@@ -39,7 +39,7 @@ pub async fn list_project_files(root: String, state: State<'_, Arc<AppState>>) -
 }
 
 #[tauri::command]
-pub async fn read_file_content(path: String, state: State<'_, Arc<AppState>>) -> Result<String, String> {
+async fn read_file_content(path: String, state: State<'_, Arc<AppState>>) -> Result<String, String> {
     let root = state
         .project_root
         .lock()
@@ -50,7 +50,7 @@ pub async fn read_file_content(path: String, state: State<'_, Arc<AppState>>) ->
 }
 
 #[tauri::command]
-pub async fn save_file_content(path: String, content: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
+async fn save_file_content(path: String, content: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
     let root = state
         .project_root
         .lock()
@@ -61,7 +61,7 @@ pub async fn save_file_content(path: String, content: String, state: State<'_, A
 }
 
 #[tauri::command]
-pub async fn start_llm_stream(
+async fn start_llm_stream(
     stream_id: String,
     model: String,
     system: String,
@@ -102,7 +102,7 @@ pub async fn start_llm_stream(
 }
 
 #[tauri::command]
-pub async fn abort_stream(stream_id: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
+async fn abort_stream(stream_id: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
     let mut streams = state.active_streams.lock().unwrap();
     if let Some(token) = streams.remove(&stream_id) {
         token.cancel();
@@ -111,7 +111,7 @@ pub async fn abort_stream(stream_id: String, state: State<'_, Arc<AppState>>) ->
 }
 
 #[tauri::command]
-pub async fn execute_agent_tool(
+async fn execute_agent_tool(
     name: String,
     args: serde_json::Value,
     state: State<'_, Arc<AppState>>,
