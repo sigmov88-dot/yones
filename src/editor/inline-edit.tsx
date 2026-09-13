@@ -58,6 +58,11 @@ export function InlineEdit(props: InlineEditProps) {
     ];
 
     const currentModel = getActiveModel();
+    if (!currentModel) {
+      console.warn("No active AI model configured for inline edit.");
+      return;
+    }
+
     try {
       const stream = streamLlm(messages, [], {
         system: systemPrompt,
@@ -158,10 +163,21 @@ export function InlineEdit(props: InlineEditProps) {
 
       <div class="mt-2 flex items-center justify-between text-[11px] text-[var(--color-fg-muted)]">
         <div class="flex items-center gap-2">
-          <span class="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-panel)] border border-[var(--color-border-subtle)] text-[var(--color-fg-secondary)]">
-            <span class="uppercase text-[8px] text-[var(--color-accent)]">{getActiveModel().provider}</span>
-            <span>{getActiveModel().name}</span>
-          </span>
+          <Show
+            when={getActiveModel()}
+            fallback={
+              <span class="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-warning)]/15 border border-[var(--color-warning)]/40 text-[var(--color-warning)]">
+                <span>⚠️ No API Key Configured</span>
+              </span>
+            }
+          >
+            {(model) => (
+              <span class="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-panel)] border border-[var(--color-border-subtle)] text-[var(--color-fg-secondary)]">
+                <span class="uppercase text-[8px] text-[var(--color-accent)]">{model().provider}</span>
+                <span>{model().name}</span>
+              </span>
+            )}
+          </Show>
           <Show
             when={streamReducer.state().isStreaming}
             fallback={<span>Esc: Dismiss &bull; Cmd+Enter: Apply</span>}

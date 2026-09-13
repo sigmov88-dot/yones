@@ -10,162 +10,207 @@ export interface ModelInfo {
   isCustom?: boolean;
   description?: string;
   context?: string;
+  category?: "frontier" | "china_superclue" | "specialized" | "local";
 }
 
 export const DEFAULT_MODELS: ModelInfo[] = [
-  // Anthropic Claude
+  // 🚀 Top Frontier Models (September 2026)
   {
-    id: "claude-3-7-sonnet-20250219",
-    name: "Claude 3.7 Sonnet",
-    provider: "anthropic",
-    enabled: true,
-    description: "Hybrid reasoning & premier coding model",
-    context: "200k",
-  },
-  {
-    id: "claude-3-5-sonnet-20241022",
-    name: "Claude 3.5 Sonnet",
-    provider: "anthropic",
-    enabled: true,
-    description: "State-of-the-art coding and agentic edits",
-    context: "200k",
-  },
-  {
-    id: "claude-3-5-haiku-20241022",
-    name: "Claude 3.5 Haiku",
-    provider: "anthropic",
-    enabled: false,
-    description: "Lightweight and ultra-fast",
-    context: "200k",
-  },
-
-  // OpenAI
-  {
-    id: "gpt-4o",
-    name: "GPT-4o",
-    provider: "openai",
-    enabled: true,
-    description: "Flagship versatile multimodal model",
-    context: "128k",
-  },
-  {
-    id: "gpt-4o-mini",
-    name: "GPT-4o Mini",
-    provider: "openai",
-    enabled: true,
-    description: "Fast, cost-efficient model for quick edits",
-    context: "128k",
-  },
-  {
-    id: "o3-mini",
-    name: "o3-mini",
-    provider: "openai",
-    enabled: true,
-    description: "High-speed reasoning model for coding",
-    context: "200k",
-  },
-  {
-    id: "o1",
-    name: "o1",
+    id: "gpt-6-astra",
+    name: "GPT-6 Astra",
     provider: "openai",
     enabled: false,
-    description: "Deep reasoning model for complex architecture",
-    context: "200k",
+    description: "Flagship autonomous agent for multi-step tasks, research, code & cybersec",
+    context: "256k",
+    category: "frontier",
   },
-
-  // Google Gemini
   {
-    id: "gemini-2.0-flash",
-    name: "Gemini 2.0 Flash",
+    id: "claude-fable-5-1",
+    name: "Claude Fable 5.1",
+    provider: "anthropic",
+    enabled: false,
+    description: "Premier coding & long-horizon reasoning, self-verifying autonomous agent",
+    context: "500k",
+    category: "frontier",
+  },
+  {
+    id: "claude-mythos-5-1",
+    name: "Claude Mythos 5.1",
+    provider: "anthropic",
+    enabled: false,
+    description: "Deep research & cybersecurity evaluation tier",
+    context: "500k",
+    category: "frontier",
+  },
+  {
+    id: "gemini-3-8-flash",
+    name: "Gemini 3.8 Flash",
     provider: "gemini",
-    enabled: true,
-    description: "Next-gen high speed and multi-tool support",
+    enabled: false,
+    description: "Agentic software engineering with top benchmarks in long-horizon dev tasks",
     context: "1M",
+    category: "frontier",
   },
   {
-    id: "gemini-1.5-pro",
-    name: "Gemini 1.5 Pro",
+    id: "gemini-3-8-flash-cyber",
+    name: "Gemini 3.8 Flash Cyber",
     provider: "gemini",
     enabled: false,
-    description: "Deep comprehension with 2M token context window",
-    context: "2M",
-  },
-
-  // OpenRouter
-  {
-    id: "deepseek/deepseek-r1",
-    name: "DeepSeek R1",
-    provider: "openrouter",
-    enabled: true,
-    description: "Top-tier open weights reasoning model",
-    context: "64k",
+    description: "Cybersecurity specialist for vulnerability finding and patching",
+    context: "1M",
+    category: "frontier",
   },
   {
-    id: "deepseek/deepseek-chat",
-    name: "DeepSeek V3",
-    provider: "openrouter",
-    enabled: true,
-    description: "Extremely cost-efficient high intelligence",
-    context: "64k",
-  },
-  {
-    id: "anthropic/claude-3.7-sonnet",
-    name: "Claude 3.7 Sonnet (OpenRouter)",
+    id: "meta/muse-spark-1-3",
+    name: "Muse Spark 1.3",
     provider: "openrouter",
     enabled: false,
-    description: "Claude via unified OpenRouter endpoint",
-    context: "200k",
-  },
-  {
-    id: "qwen/qwen-2.5-coder-32b-instruct",
-    name: "Qwen 2.5 Coder 32B",
-    provider: "openrouter",
-    enabled: false,
-    description: "Specialized open weights coding model",
-    context: "32k",
-  },
-
-  // Ollama (Local)
-  {
-    id: "llama3.3",
-    name: "Llama 3.3 (Local)",
-    provider: "ollama",
-    enabled: false,
-    description: "Local model running via Ollama",
+    description: "Coding & agent reasoning with interactive clarification on ambiguous prompts",
     context: "128k",
+    category: "frontier",
+  },
+
+  // 🇨🇳 Top Open Weights & SuperCLUE Models (Aug–Sept 2026)
+  {
+    id: "qwen/qwen3.8-max",
+    name: "Qwen3.8-Max",
+    provider: "openrouter",
+    enabled: false,
+    description: "SuperCLUE #1 Sept 2026 flagship with massive context & multimodal logic",
+    context: "1M",
+    category: "china_superclue",
   },
   {
-    id: "qwen2.5-coder:7b",
-    name: "Qwen 2.5 Coder 7B (Local)",
-    provider: "ollama",
+    id: "zhipu/glm-5.3",
+    name: "GLM-5.3",
+    provider: "openrouter",
     enabled: false,
-    description: "Local coding model via Ollama",
-    context: "32k",
+    description: "Advanced planning and strict instruction adherence in code workflows",
+    context: "256k",
+    category: "china_superclue",
   },
   {
-    id: "deepseek-r1:14b",
-    name: "DeepSeek R1 14B (Local)",
-    provider: "ollama",
+    id: "moonshot/kimi-k3",
+    name: "Kimi K3",
+    provider: "openrouter",
     enabled: false,
-    description: "Local reasoning model via Ollama",
+    description: "2.8T parameters flagship open-weights agent model",
+    context: "512k",
+    category: "china_superclue",
+  },
+  {
+    id: "deepseek/deepseek-v4-pro",
+    name: "DeepSeek-V4-Pro",
+    provider: "openrouter",
+    enabled: false,
+    description: "High-tier architecture & reasoning coding model at low cost",
+    context: "256k",
+    category: "china_superclue",
+  },
+  {
+    id: "deepseek/deepseek-v4-flash",
+    name: "DeepSeek-V4-Flash",
+    provider: "openrouter",
+    enabled: false,
+    description: "Ultra-fast, lowest-cost production model for everyday coding",
+    context: "128k",
+    category: "china_superclue",
+  },
+
+  // 🧠 Specialized & Code Verification Releases
+  {
+    id: "xai/grok-build-0-1",
+    name: "Grok Build 0.1",
+    provider: "openrouter",
+    enabled: false,
+    description: "Dedicated agentic programming and system architecture model",
+    context: "256k",
+    category: "specialized",
+  },
+  {
+    id: "xai/grok-4.3",
+    name: "Grok 4.3",
+    provider: "openrouter",
+    enabled: false,
+    description: "Cost-efficient reasoning flagship model",
+    context: "256k",
+    category: "specialized",
+  },
+  {
+    id: "mistral/leanstral-1.5",
+    name: "Leanstral 1.5",
+    provider: "openrouter",
+    enabled: false,
+    description: "Formal code verification and logic proof model",
+    context: "128k",
+    category: "specialized",
+  },
+  {
+    id: "mistral/robostral-navigate",
+    name: "Robostral Navigate",
+    provider: "openrouter",
+    enabled: false,
+    description: "Spatial reasoning and robot navigation logic",
     context: "64k",
+    category: "specialized",
+  },
+  {
+    id: "cohere/command-a-plus",
+    name: "Command A+",
+    provider: "openrouter",
+    enabled: false,
+    description: "Open weights model optimized for on-prem enterprise clusters (2x H100)",
+    context: "256k",
+    category: "specialized",
+  },
+
+  // 🔌 Local Ollama Models (http://localhost:11434)
+  {
+    id: "kimi-k3:latest",
+    name: "Kimi K3 (Local)",
+    provider: "ollama",
+    enabled: false,
+    description: "Local 2.8T open-weights model via Ollama",
+    context: "128k",
+    category: "local",
+  },
+  {
+    id: "deepseek-v4-flash:latest",
+    name: "DeepSeek-V4-Flash (Local)",
+    provider: "ollama",
+    enabled: false,
+    description: "Local high-efficiency reasoning via Ollama",
+    context: "64k",
+    category: "local",
+  },
+  {
+    id: "qwen3.8-max:latest",
+    name: "Qwen3.8-Max (Local)",
+    provider: "ollama",
+    enabled: false,
+    description: "Local flagship multimodal reasoning via Ollama",
+    context: "128k",
+    category: "local",
   },
 ];
 
-const STORAGE_MODELS_KEY = "yones_models_registry";
-const STORAGE_ACTIVE_MODEL_KEY = "yones_active_model_id";
+const STORAGE_MODELS_KEY = "yones_models_registry_v2026_09";
+const STORAGE_ACTIVE_MODEL_KEY = "yones_active_model_id_v2026_09";
 
 let inMemoryModels: ModelInfo[] = [...DEFAULT_MODELS];
-let inMemoryActiveId: string = "claude-3-7-sonnet-20250219";
+let inMemoryActiveId: string | null = null;
 
 export function loadModels(): ModelInfo[] {
   try {
     if (typeof localStorage !== "undefined") {
+      // Clean legacy keys if present
+      localStorage.removeItem("yones_models_registry");
+      localStorage.removeItem("yones_active_model_id");
+
       const raw = localStorage.getItem(STORAGE_MODELS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as ModelInfo[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge with any new default models
           const existingIds = new Set(parsed.map((m) => m.id));
           const missingDefaults = DEFAULT_MODELS.filter((m) => !existingIds.has(m.id));
           const merged = [...parsed, ...missingDefaults];
@@ -203,6 +248,62 @@ export function toggleModel(modelId: string, enabled?: boolean): ModelInfo[] {
     return m;
   });
   saveModels(updated);
+
+  // If active model was just disabled, fallback to next enabled model or null
+  const active = getActiveModel();
+  if (!active || active.id === modelId && enabled === false) {
+    const nextEnabled = updated.filter((m) => m.enabled)[0] ?? null;
+    setActiveModel(nextEnabled ? nextEnabled.id : null);
+  }
+
+  return updated;
+}
+
+export function enableProviderModels(provider: ModelProvider, defaultModelId?: string): ModelInfo[] {
+  const current = loadModels();
+  let targetId = defaultModelId;
+  if (!targetId) {
+    const found = current.find((m) => m.provider === provider);
+    targetId = found?.id;
+  }
+
+  const updated = current.map((m) => {
+    if (m.provider === provider) {
+      if (m.id === targetId) {
+        return { ...m, enabled: true };
+      }
+    }
+    return m;
+  });
+
+  saveModels(updated);
+
+  // If no model currently active, set the default for this newly enabled provider
+  const currentActive = getActiveModel();
+  if (!currentActive && targetId) {
+    setActiveModel(targetId);
+  }
+
+  return updated;
+}
+
+export function disableProviderModels(provider: ModelProvider): ModelInfo[] {
+  const current = loadModels();
+  const updated = current.map((m) => {
+    if (m.provider === provider) {
+      return { ...m, enabled: false };
+    }
+    return m;
+  });
+
+  saveModels(updated);
+
+  const active = getActiveModel();
+  if (active && active.provider === provider) {
+    const nextEnabled = updated.filter((m) => m.enabled)[0] ?? null;
+    setActiveModel(nextEnabled ? nextEnabled.id : null);
+  }
+
   return updated;
 }
 
@@ -224,6 +325,9 @@ export function addCustomModel(model: {
   };
   const updated = [...current, newModel];
   saveModels(updated);
+
+  // Activate custom model immediately
+  setActiveModel(newModel.id);
   return updated;
 }
 
@@ -231,16 +335,27 @@ export function removeCustomModel(modelId: string): ModelInfo[] {
   const current = loadModels();
   const updated = current.filter((m) => m.id !== modelId || !m.isCustom);
   saveModels(updated);
+
+  const active = getActiveModel();
+  if (active?.id === modelId) {
+    const nextEnabled = updated.filter((m) => m.enabled)[0] ?? null;
+    setActiveModel(nextEnabled ? nextEnabled.id : null);
+  }
+
   return updated;
 }
 
 export function getEnabledModels(): ModelInfo[] {
   const all = loadModels();
-  const enabled = all.filter((m) => m.enabled);
-  return enabled.length > 0 ? enabled : [DEFAULT_MODELS[0]];
+  return all.filter((m) => m.enabled);
 }
 
-export function getActiveModel(): ModelInfo {
+export function getActiveModel(): ModelInfo | null {
+  const enabled = getEnabledModels();
+  if (enabled.length === 0) {
+    return null;
+  }
+
   let activeId = inMemoryActiveId;
   try {
     if (typeof localStorage !== "undefined") {
@@ -251,16 +366,23 @@ export function getActiveModel(): ModelInfo {
     // ignore
   }
 
-  const enabled = getEnabledModels();
-  const found = enabled.find((m) => m.id === activeId);
-  return found || enabled[0] || DEFAULT_MODELS[0];
+  if (activeId) {
+    const found = enabled.find((m) => m.id === activeId);
+    if (found) return found;
+  }
+
+  return enabled[0] || null;
 }
 
-export function setActiveModel(modelId: string): void {
+export function setActiveModel(modelId: string | null): void {
   inMemoryActiveId = modelId;
   try {
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(STORAGE_ACTIVE_MODEL_KEY, modelId);
+      if (modelId) {
+        localStorage.setItem(STORAGE_ACTIVE_MODEL_KEY, modelId);
+      } else {
+        localStorage.removeItem(STORAGE_ACTIVE_MODEL_KEY);
+      }
     }
   } catch {
     // ignore

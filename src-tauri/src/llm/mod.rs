@@ -51,18 +51,20 @@ impl LlmService {
             return 0.0;
         }
 
-        let (in_rate, out_rate) = if m.contains("claude-3-7-sonnet") || m.contains("claude-3-5-sonnet") {
+        let (in_rate, out_rate) = if m.contains("fable") || m.contains("mythos") || m.contains("claude") {
             (3.0, 15.0)
-        } else if m.contains("haiku") {
-            (0.8, 4.0)
-        } else if m.contains("gpt-4o-mini") {
-            (0.15, 0.6)
-        } else if m.contains("gpt-4o") || m.contains("o1") || m.contains("o3") {
+        } else if m.contains("gpt-6") || m.contains("astra") || m.contains("gpt") || m.contains("o1") || m.contains("o3") {
             (2.5, 10.0)
+        } else if m.contains("flash") && (m.contains("deepseek") || m.contains("v4-flash")) {
+            (0.10, 0.40)
         } else if m.contains("gemini") {
-            (0.15, 0.6)
+            (0.15, 0.60)
+        } else if m.contains("deepseek") {
+            (0.50, 2.0)
+        } else if m.contains("qwen") || m.contains("kimi") || m.contains("glm") {
+            (1.0, 4.0)
         } else {
-            (2.0, 8.0)
+            (1.5, 6.0)
         };
 
         ((in_tok as f64) * in_rate + (out_tok as f64) * out_rate) / 1_000_000.0

@@ -33,7 +33,7 @@ export function StatusBar(props: StatusBarProps) {
 
         <div class="flex items-center gap-1.5">
           <span class="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-          <span>LSP</span>
+          <span>Syntax</span>
           <span class="flex items-center gap-2 font-mono text-[10px]">
             <span class="text-[var(--color-danger)] font-medium flex items-center gap-1">
               <ErrorIcon class="h-3 w-3" />

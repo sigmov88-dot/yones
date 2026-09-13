@@ -25,6 +25,7 @@ import {
   KeyIcon,
   SparklesIcon,
   SearchIcon,
+  WarningIcon,
 } from "../ui/icons";
 import { Toggle } from "../ui/Toggle";
 
@@ -140,8 +141,22 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
     }
   };
 
+  const isProviderKeySet = (provider: string) => {
+    if (provider === "ollama") return true; // Local models
+    const status = statuses().find((s) => s.provider === provider);
+    return status?.is_set ?? false;
+  };
+
   // Model Toggle handlers
   const handleModelToggle = (id: string, enabled: boolean) => {
+    const model = modelsList().find((m) => m.id === id);
+    if (enabled && model && !isProviderKeySet(model.provider)) {
+      setDiscoverNotice(
+        `Cannot enable ${model.name}: API key for ${model.provider.toUpperCase()} is not set. Please configure it in the API Keys tab.`
+      );
+      setSelectedProviderId(model.provider);
+      return;
+    }
     const updated = toggleModel(id, enabled);
     setModelsList(updated);
     props.onModelsUpdated?.();
@@ -534,17 +549,29 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
                 </div>
               </div>
 
-              {/* Discovery feedback notice */}
+              {/* Discovery & Key notice */}
               <Show when={discoverNotice()}>
-                <div class="p-2 rounded bg-[var(--color-bg-raised)] border border-[var(--color-border-subtle)] text-[11px] text-[var(--color-fg-secondary)] flex items-center justify-between">
-                  <span>{discoverNotice()}</span>
-                  <button
-                    type="button"
-                    class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer"
-                    onClick={() => setDiscoverNotice(null)}
-                  >
-                    <CloseIcon class="h-3 w-3" />
-                  </button>
+                <div class="p-2.5 rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] text-xs text-[var(--color-fg-secondary)] flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <WarningIcon class="h-3.5 w-3.5 text-[var(--color-warning)] shrink-0" />
+                    <span class="truncate">{discoverNotice()}</span>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      class="px-2.5 py-1 rounded bg-[var(--color-accent)] text-white text-[11px] font-medium hover:bg-[var(--color-accent-hover)] cursor-pointer"
+                      onClick={() => setModalTab("keys")}
+                    >
+                      Go to API Keys
+                    </button>
+                    <button
+                      type="button"
+                      class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-0.5"
+                      onClick={() => setDiscoverNotice(null)}
+                    >
+                      <CloseIcon class="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
               </Show>
 
@@ -647,60 +674,90 @@ export function ApiKeyModal(props: ApiKeyModalProps) {
                 }
               >
                 <For each={filteredModels()}>
-                  {(model) => (
-                    <div
-                      class="px-3.5 py-2.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] flex items-center justify-between gap-4 transition-colors hover:border-[var(--color-border)]"
-                      classList={{
-                        "opacity-60": !model.enabled,
-                      }}
-                    >
-                      <div class="flex-1 min-w-0 space-y-1">
-                        <div class="flex items-center gap-2">
-                          <span class="text-xs font-semibold text-[var(--color-fg-primary)] truncate">
-                            {model.name}
-                          </span>
-                          <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border border-[var(--color-border-subtle)]">
-                            {model.provider}
-                          </span>
-                          <Show when={model.context}>
-                            <span class="text-[10px] font-mono text-[var(--color-fg-muted)]">
-                              {model.context}
+                  {(model) => {
+                    const isKeyReady = () => isProviderKeySet(model.provider);
+                    return (
+                      <div
+                        class="px-3.5 py-2.5 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] flex items-center justify-between gap-4 transition-colors hover:border-[var(--color-border)]"
+                        classList={{
+                          "opacity-60": !model.enabled && isKeyReady(),
+                          "border-[var(--color-warning)]/30 bg-[var(--color-warning)]/5": !isKeyReady(),
+                        }}
+                      >
+                        <div class="flex-1 min-w-0 space-y-1">
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold text-[var(--color-fg-primary)] truncate">
+                              {model.name}
                             </span>
-                          </Show>
+                            <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border border-[var(--color-border-subtle)]">
+                              {model.provider}
+                            </span>
+                            <Show when={model.context}>
+                              <span class="text-[10px] font-mono text-[var(--color-fg-muted)]">
+                                {model.context}
+                              </span>
+                            </Show>
+                            <Show
+                              when={isKeyReady()}
+                              fallback={
+                                <button
+                                  type="button"
+                                  class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-warning)]/15 text-[var(--color-warning)] border border-[var(--color-warning)]/40 hover:bg-[var(--color-warning)]/25 font-medium cursor-pointer flex items-center gap-1"
+                                  onClick={() => {
+                                    setSelectedProviderId(model.provider);
+                                    setModalTab("keys");
+                                  }}
+                                  title="Click to configure API key"
+                                >
+                                  <span>⚠️ API Key Required</span>
+                                </button>
+                              }
+                            >
+                              <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-success)]/15 text-[var(--color-success)] border border-[var(--color-success)]/30 font-medium">
+                                ✓ Ready
+                              </span>
+                            </Show>
+                          </div>
+                          <div class="flex items-center gap-2 text-[11px] text-[var(--color-fg-muted)]">
+                            <span class="font-mono text-[10px] text-[var(--color-fg-secondary)] truncate">
+                              {model.id}
+                            </span>
+                            <Show when={model.description}>
+                              <span>•</span>
+                              <span class="truncate">{model.description}</span>
+                            </Show>
+                          </div>
                         </div>
-                        <div class="flex items-center gap-2 text-[11px] text-[var(--color-fg-muted)]">
-                          <span class="font-mono text-[10px] text-[var(--color-fg-secondary)] truncate">
-                            {model.id}
-                          </span>
-                          <Show when={model.description}>
-                            <span>•</span>
-                            <span class="truncate">{model.description}</span>
+
+                        {/* Right Action: Delete if custom + Cursor-Style Toggle Switch */}
+                        <div class="flex items-center gap-3 shrink-0">
+                          <Show when={model.isCustom}>
+                            <button
+                              type="button"
+                              class="text-[11px] text-[var(--color-danger)] hover:underline cursor-pointer"
+                              onClick={() => handleRemoveCustomModel(model.id)}
+                              title="Remove custom model"
+                            >
+                              Delete
+                            </button>
                           </Show>
+
+                          {/* Cursor-style Toggle Switch */}
+                          <Toggle
+                            checked={model.enabled}
+                            onChange={(val) => handleModelToggle(model.id, val)}
+                            title={
+                              isKeyReady()
+                                ? model.enabled
+                                  ? "Disable model"
+                                  : "Enable model"
+                                : "API key required to enable"
+                            }
+                          />
                         </div>
                       </div>
-
-                      {/* Right Action: Delete if custom + Cursor-Style Toggle Switch */}
-                      <div class="flex items-center gap-3 shrink-0">
-                        <Show when={model.isCustom}>
-                          <button
-                            type="button"
-                            class="text-[11px] text-[var(--color-danger)] hover:underline cursor-pointer"
-                            onClick={() => handleRemoveCustomModel(model.id)}
-                            title="Remove custom model"
-                          >
-                            Delete
-                          </button>
-                        </Show>
-
-                        {/* Cursor-style Toggle Switch */}
-                        <Toggle
-                          checked={model.enabled}
-                          onChange={(val) => handleModelToggle(model.id, val)}
-                          title={model.enabled ? "Disable model" : "Enable model"}
-                        />
-                      </div>
-                    </div>
-                  )}
+                    );
+                  }}
                 </For>
               </Show>
             </div>

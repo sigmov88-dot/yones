@@ -13,6 +13,7 @@ import {
   GearIcon,
   SparklesIcon,
   SearchIcon,
+  KeyIcon,
 } from "../ui/icons";
 import {
   getActiveModel,
@@ -35,11 +36,19 @@ export interface AssistantPanelProps {
 }
 
 export function AssistantPanel(props: AssistantPanelProps) {
+  const getWelcomeText = () => {
+    const cur = getActiveModel();
+    if (cur) {
+      return `AI Assistant connected with ${cur.name} (${cur.provider.toUpperCase()}). Use @ to reference files or instruct edits.`;
+    }
+    return "No AI API key configured yet. Add an API key for Anthropic, OpenAI, OpenRouter, or Gemini to enable frontier models (GPT-6 Astra, Claude Fable 5.1, Gemini 3.8 Flash, etc.) and start coding.";
+  };
+
   const [messages, setMessages] = createSignal<ChatEntry[]>([
     {
       id: "welcome",
       role: "assistant",
-      text: "Yones Assistant ready. Use @ to reference files or ask to inspect and edit your project.",
+      text: getWelcomeText(),
     },
   ]);
 
@@ -49,14 +58,24 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const [mentionFilter, setMentionFilter] = createSignal("");
 
   // Model Selection state (Cursor-style)
-  const [activeModel, setActiveModelSignal] = createSignal<ModelInfo>(getActiveModel());
+  const [activeModel, setActiveModelSignal] = createSignal<ModelInfo | null>(getActiveModel());
   const [enabledModels, setEnabledModels] = createSignal<ModelInfo[]>(getEnabledModels());
   const [modelMenuOpen, setModelMenuOpen] = createSignal(false);
   const [modelSearch, setModelSearch] = createSignal("");
 
   const updateModelsFromStorage = () => {
-    setActiveModelSignal(getActiveModel());
+    const cur = getActiveModel();
+    setActiveModelSignal(cur);
     setEnabledModels(getEnabledModels());
+    if (messages().length === 1 && messages()[0].id === "welcome") {
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          text: getWelcomeText(),
+        },
+      ]);
+    }
   };
 
   const filteredEnabledModels = () => {
@@ -126,6 +145,12 @@ export function AssistantPanel(props: AssistantPanelProps) {
     const text = inputVal().trim();
     if (!text) return;
 
+    const chosenModel = activeModel();
+    if (!chosenModel) {
+      props.onOpenSettings?.("keys");
+      return;
+    }
+
     setInputVal("");
     setMentionMenuOpen(false);
 
@@ -162,7 +187,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
       let isLoopDone = false;
       let iterations = 0;
 
-      const modelToUse = activeModel();
+      const modelToUse = chosenModel;
       while (!isLoopDone && iterations < 5) {
         iterations++;
         const stream = streamLlm(conversation, AGENT_TOOLS, {
@@ -293,12 +318,23 @@ export function AssistantPanel(props: AssistantPanelProps) {
     <div class="h-full w-full flex flex-col bg-[var(--color-bg-panel)] border-l border-[var(--color-border-subtle)]">
       <div class="h-9 px-3 flex items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)]">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-medium text-[var(--color-fg-primary)]">Agent Assistant</span>
+          <span class="text-xs font-medium text-[var(--color-fg-primary)]">AI Assistant</span>
           <Show when={streamReducer.state().isStreaming}>
             <div class="h-2 w-2 rounded-full bg-[var(--color-accent)] animate-agent-working" />
           </Show>
         </div>
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1.5">
+          <Show when={!activeModel()}>
+            <button
+              type="button"
+              class="px-2 py-0.5 rounded bg-[var(--color-warning)]/15 text-[var(--color-warning)] hover:bg-[var(--color-warning)]/25 border border-[var(--color-warning)]/40 text-[10px] font-medium cursor-pointer flex items-center gap-1"
+              onClick={() => props.onOpenSettings?.("keys")}
+              title="Click to configure API key"
+            >
+              <KeyIcon class="h-3 w-3" />
+              <span>Add Key</span>
+            </button>
+          </Show>
           <button
             type="button"
             class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-1 rounded hover:bg-[var(--color-bg-active)] flex items-center gap-1 text-[11px]"
@@ -317,15 +353,15 @@ export function AssistantPanel(props: AssistantPanelProps) {
         </div>
       </div>
 
-      <Show when={props.hasApiKey === false}>
+      <Show when={props.hasApiKey === false || !activeModel()}>
         <div class="mx-3 mt-2 p-2.5 rounded border border-[var(--color-border-subtle)] bg-[var(--color-bg-raised)] text-xs flex items-center justify-between">
-          <span class="text-[var(--color-fg-muted)]">No API key configured</span>
+          <span class="text-[var(--color-fg-muted)]">No AI API key configured</span>
           <button
             type="button"
             class="text-[var(--color-accent)] hover:underline font-medium cursor-pointer inline-flex items-center gap-1"
             onClick={() => props.onOpenSettings?.("keys")}
           >
-            Configure
+            Configure Key
             <ChevronRightIcon class="h-3 w-3" />
           </button>
         </div>
@@ -364,7 +400,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
           ref={inputRef}
           rows={3}
           class="w-full resize-none rounded bg-[var(--color-bg-editor)] p-2 text-xs text-[var(--color-fg-primary)] placeholder-[var(--color-fg-muted)] border border-[var(--color-border-subtle)] outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent-ring)]"
-          placeholder="Ask agent, type @ to mention files (Enter to send, Esc to cancel)..."
+          placeholder={
+            activeModel()
+              ? `Ask ${activeModel()!.name}, type @ to mention files (Enter to send, Esc to cancel)...`
+              : "Configure an API key in settings to start asking questions..."
+          }
           value={inputVal()}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
@@ -376,13 +416,32 @@ export function AssistantPanel(props: AssistantPanelProps) {
           <div class="relative">
             <button
               type="button"
-              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-[var(--color-bg-raised)] hover:bg-[var(--color-bg-active)] text-[var(--color-fg-primary)] border border-[var(--color-border-subtle)] transition-colors cursor-pointer"
+              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-[var(--color-bg-raised)] hover:bg-[var(--color-bg-active)] border transition-colors cursor-pointer"
+              classList={{
+                "text-[var(--color-fg-primary)] border-[var(--color-border-subtle)]": !!activeModel(),
+                "text-[var(--color-warning)] border-[var(--color-warning)]/40": !activeModel(),
+              }}
               onClick={() => setModelMenuOpen((v) => !v)}
-              title="Select Active AI Model (Cursor-style)"
+              title={activeModel() ? "Select Active AI Model (Cursor-style)" : "No API key configured - Click to configure"}
             >
-              <SparklesIcon class="h-3 w-3 text-[var(--color-accent)]" />
-              <span class="truncate max-w-[120px]">{activeModel().name}</span>
-              <ChevronDownIcon class="h-2.5 w-2.5 text-[var(--color-fg-muted)]" />
+              <Show
+                when={activeModel()}
+                fallback={
+                  <>
+                    <KeyIcon class="h-3 w-3 text-[var(--color-warning)]" />
+                    <span class="truncate max-w-[130px]">No API Key</span>
+                    <ChevronDownIcon class="h-2.5 w-2.5 opacity-60" />
+                  </>
+                }
+              >
+                {(model) => (
+                  <>
+                    <SparklesIcon class="h-3 w-3 text-[var(--color-accent)]" />
+                    <span class="truncate max-w-[125px]">{model().name}</span>
+                    <ChevronDownIcon class="h-2.5 w-2.5 text-[var(--color-fg-muted)]" />
+                  </>
+                )}
+              </Show>
             </button>
 
             {/* Model Selection Dropdown Popup */}
@@ -421,14 +480,30 @@ export function AssistantPanel(props: AssistantPanelProps) {
                   <Show
                     when={filteredEnabledModels().length > 0}
                     fallback={
-                      <div class="py-6 text-center text-[11px] text-[var(--color-fg-muted)]">
-                        No enabled models match search.
+                      <div class="py-6 px-4 text-center space-y-2">
+                        <div class="text-xs font-semibold text-[var(--color-fg-primary)]">
+                          No models enabled
+                        </div>
+                        <div class="text-[11px] text-[var(--color-fg-muted)] leading-relaxed">
+                          Add an API key in Settings to activate models (GPT-6 Astra, Claude Fable 5.1, Gemini 3.8 Flash, etc.).
+                        </div>
+                        <button
+                          type="button"
+                          class="mt-1 inline-flex items-center gap-1.5 px-3 py-1 text-xs rounded bg-[var(--color-accent)] text-white font-medium hover:bg-[var(--color-accent-hover)] cursor-pointer"
+                          onClick={() => {
+                            setModelMenuOpen(false);
+                            props.onOpenSettings?.("keys");
+                          }}
+                        >
+                          <KeyIcon class="h-3 w-3" />
+                          <span>Add API Key</span>
+                        </button>
                       </div>
                     }
                   >
                     <For each={filteredEnabledModels()}>
                       {(model) => {
-                        const isSelected = () => model.id === activeModel().id;
+                        const isSelected = () => model.id === activeModel()?.id;
                         return (
                           <button
                             type="button"

@@ -81,13 +81,13 @@ async fn start_llm_stream(
         p.to_lowercase()
     } else {
         let m = model.to_lowercase();
-        if m.contains("claude") {
+        if m.contains("claude") || m.contains("fable") || m.contains("mythos") {
             "anthropic".to_string()
         } else if m.contains("ollama") || m.contains("localhost") {
             "ollama".to_string()
         } else if m.contains("gemini") {
             "gemini".to_string()
-        } else if m.contains("/") {
+        } else if m.contains("/") || m.contains("deepseek") || m.contains("qwen") || m.contains("kimi") || m.contains("glm") || m.contains("grok") || m.contains("leanstral") || m.contains("robostral") || m.contains("command-a") {
             "openrouter".to_string()
         } else {
             "openai".to_string()
