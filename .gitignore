@@ -5,6 +5,8 @@ dist-ssr/
 
 # Tauri
 src-tauri/target/
+*.o
+src-tauri/*.o
 
 # Logs
 npm-debug.log*

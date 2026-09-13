@@ -1,9 +1,7 @@
 pub mod apply;
-pub mod ast;
 pub mod editor_fs;
 pub mod fs_jail;
 pub mod llm;
-pub mod lsp;
 pub mod search;
 pub mod secrets;
 pub mod shell;
@@ -13,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use apply::{ApplyTransaction, TransactionManager};
 use editor_fs::{EditorFs, FileNodeInfo};
 use llm::{ChatMessage, LlmEvent, LlmService, LlmToolDefinition};
+use reqwest::header::{HeaderMap, HeaderValue};
 use search::SearchEngine;
 use secrets::SecretManager;
 use shell::ShellRunner;
@@ -30,9 +29,9 @@ pub struct AppState {
 #[tauri::command]
 async fn list_project_files(root: String, state: State<'_, Arc<AppState>>) -> Result<Vec<FileNodeInfo>, String> {
     {
-        let mut p_root = state.project_root.lock().unwrap();
+        let mut p_root = state.project_root.lock().map_err(|_| "State lock poisoned")?;
         *p_root = Some(root.clone());
-        let mut tx = state.tx_mgr.lock().unwrap();
+        let mut tx = state.tx_mgr.lock().map_err(|_| "Tx lock poisoned")?;
         *tx = TransactionManager::new(&root);
     }
     EditorFs::list_tree(&root)
@@ -43,7 +42,7 @@ async fn read_file_content(path: String, state: State<'_, Arc<AppState>>) -> Res
     let root = state
         .project_root
         .lock()
-        .unwrap()
+        .map_err(|_| "State lock poisoned")?
         .clone()
         .unwrap_or_else(|| ".".into());
     EditorFs::read_file(&root, &path)
@@ -54,7 +53,7 @@ async fn save_file_content(path: String, content: String, state: State<'_, Arc<A
     let root = state
         .project_root
         .lock()
-        .unwrap()
+        .map_err(|_| "State lock poisoned")?
         .clone()
         .unwrap_or_else(|| ".".into());
     EditorFs::write_file(&root, &path, &content)
@@ -63,6 +62,7 @@ async fn save_file_content(path: String, content: String, state: State<'_, Arc<A
 #[tauri::command]
 async fn start_llm_stream(
     stream_id: String,
+    provider: Option<String>,
     model: String,
     system: String,
     messages: Vec<ChatMessage>,
@@ -72,49 +72,150 @@ async fn start_llm_stream(
 ) -> Result<(), String> {
     let cancel = CancellationToken::new();
     {
-        let mut streams = state.active_streams.lock().unwrap();
+        let mut streams = state.active_streams.lock().map_err(|_| "Active streams lock poisoned")?;
         streams.insert(stream_id.clone(), cancel.clone());
     }
 
-    let is_anthropic = model.contains("claude") || (!model.contains("ollama") && !model.contains("gpt") && !model.contains("o1") && !model.contains("o3"));
+    // Determine target provider explicitly or from model
+    let target_provider = if let Some(ref p) = provider {
+        p.to_lowercase()
+    } else {
+        let m = model.to_lowercase();
+        if m.contains("claude") {
+            "anthropic".to_string()
+        } else if m.contains("ollama") || m.contains("localhost") {
+            "ollama".to_string()
+        } else if m.contains("gemini") {
+            "gemini".to_string()
+        } else if m.contains("/") {
+            "openrouter".to_string()
+        } else {
+            "openai".to_string()
+        }
+    };
+
     let state_clone = Arc::clone(&state);
 
     tokio::spawn(async move {
-        if is_anthropic {
-            let api_key = SecretManager::get_key("anthropic").unwrap_or_default();
-            if api_key.trim().is_empty() {
-                let _ = channel.send(LlmEvent::Error(
-                    "Anthropic API key is not configured. Please open Settings (⚙) and add your API key.".into(),
-                ));
-                let _ = channel.send(LlmEvent::Done);
-                return;
+        match target_provider.as_str() {
+            "anthropic" => {
+                let api_key = SecretManager::get_key("anthropic").unwrap_or_default();
+                if api_key.trim().is_empty() {
+                    let _ = channel.send(LlmEvent::Error(
+                        "Anthropic API key is not configured. Please open Settings (⚙) and add your API key.".into(),
+                    ));
+                    let _ = channel.send(LlmEvent::Done);
+                    return;
+                }
+                let _ = state_clone
+                    .llm
+                    .stream_anthropic(&api_key, &model, &system, messages, tools, channel, cancel)
+                    .await;
             }
-            let _ = state_clone
-                .llm
-                .stream_anthropic(&api_key, &model, &system, messages, tools, channel, cancel)
-                .await;
-        } else if model.contains("ollama") {
-            let _ = state_clone
-                .llm
-                .stream_openai("http://localhost:11434/v1/chat/completions", "", &model, &system, messages, channel, cancel)
-                .await;
-        } else {
-            let api_key = SecretManager::get_key("openai").unwrap_or_default();
-            if api_key.trim().is_empty() {
-                let _ = channel.send(LlmEvent::Error(
-                    "OpenAI API key is not configured. Please open Settings (⚙) and add your API key.".into(),
-                ));
-                let _ = channel.send(LlmEvent::Done);
-                return;
+            "openai" => {
+                let api_key = SecretManager::get_key("openai").unwrap_or_default();
+                if api_key.trim().is_empty() {
+                    let _ = channel.send(LlmEvent::Error(
+                        "OpenAI API key is not configured. Please open Settings (⚙) and add your API key.".into(),
+                    ));
+                    let _ = channel.send(LlmEvent::Done);
+                    return;
+                }
+                let _ = state_clone
+                    .llm
+                    .stream_openai_compatible(
+                        "https://api.openai.com/v1/chat/completions",
+                        &api_key,
+                        &model,
+                        &system,
+                        messages,
+                        tools,
+                        None,
+                        channel,
+                        cancel,
+                    )
+                    .await;
             }
-            let _ = state_clone
-                .llm
-                .stream_openai("", &api_key, &model, &system, messages, channel, cancel)
-                .await;
+            "openrouter" => {
+                let api_key = SecretManager::get_key("openrouter").unwrap_or_default();
+                if api_key.trim().is_empty() {
+                    let _ = channel.send(LlmEvent::Error(
+                        "OpenRouter API key is not configured. Please open Settings (⚙) and add your API key.".into(),
+                    ));
+                    let _ = channel.send(LlmEvent::Done);
+                    return;
+                }
+                let mut headers = HeaderMap::new();
+                headers.insert("HTTP-Referer", HeaderValue::from_static("https://yones.ide"));
+                headers.insert("X-Title", HeaderValue::from_static("Yones IDE"));
+
+                let _ = state_clone
+                    .llm
+                    .stream_openai_compatible(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        &api_key,
+                        &model,
+                        &system,
+                        messages,
+                        tools,
+                        Some(headers),
+                        channel,
+                        cancel,
+                    )
+                    .await;
+            }
+            "gemini" => {
+                let api_key = SecretManager::get_key("gemini").unwrap_or_default();
+                if api_key.trim().is_empty() {
+                    let _ = channel.send(LlmEvent::Error(
+                        "Gemini API key is not configured. Please open Settings (⚙) and add your API key.".into(),
+                    ));
+                    let _ = channel.send(LlmEvent::Done);
+                    return;
+                }
+                let _ = state_clone
+                    .llm
+                    .stream_openai_compatible(
+                        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                        &api_key,
+                        &model,
+                        &system,
+                        messages,
+                        tools,
+                        None,
+                        channel,
+                        cancel,
+                    )
+                    .await;
+            }
+            "ollama" => {
+                let _ = state_clone
+                    .llm
+                    .stream_openai_compatible(
+                        "http://localhost:11434/v1/chat/completions",
+                        "",
+                        &model,
+                        &system,
+                        messages,
+                        tools,
+                        None,
+                        channel,
+                        cancel,
+                    )
+                    .await;
+            }
+            unknown => {
+                let _ = channel.send(LlmEvent::Error(format!(
+                    "Unknown LLM provider '{}'. Supported providers: anthropic, openai, openrouter, gemini, ollama",
+                    unknown
+                )));
+                let _ = channel.send(LlmEvent::Done);
+            }
         }
 
-        let mut streams = state_clone.active_streams.lock().unwrap();
-        streams.remove(&stream_id);
+        if let Ok(mut streams) = state_clone.active_streams.lock() {
+            streams.remove(&stream_id);
+        }
     });
 
     Ok(())
@@ -151,7 +252,7 @@ async fn test_api_key(provider: String, key: Option<String>) -> Result<String, S
 
 #[tauri::command]
 async fn abort_stream(stream_id: String, state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    let mut streams = state.active_streams.lock().unwrap();
+    let mut streams = state.active_streams.lock().map_err(|_| "Active streams lock poisoned")?;
     if let Some(token) = streams.remove(&stream_id) {
         token.cancel();
     }
@@ -167,7 +268,7 @@ async fn execute_agent_tool(
     let root = state
         .project_root
         .lock()
-        .unwrap()
+        .map_err(|_| "State lock poisoned")?
         .clone()
         .unwrap_or_else(|| ".".into());
 
@@ -177,10 +278,27 @@ async fn execute_agent_tool(
                 .get("path")
                 .and_then(|p| p.as_str())
                 .ok_or("Missing 'path' argument")?;
-            EditorFs::read_file(&root, path)
+            let line_start = args.get("line_start").and_then(|l| l.as_u64()).map(|l| l as usize);
+            let line_end = args.get("line_end").and_then(|l| l.as_u64()).map(|l| l as usize);
+
+            let content = EditorFs::read_file(&root, path)?;
+            if line_start.is_some() || line_end.is_some() {
+                let start = line_start.unwrap_or(1).saturating_sub(1);
+                let lines: Vec<&str> = content.lines().collect();
+                let end = line_end.unwrap_or(lines.len()).min(lines.len());
+                if start < lines.len() {
+                    Ok(lines[start..end].join("\n"))
+                } else {
+                    Ok(String::new())
+                }
+            } else {
+                Ok(content)
+            }
         }
         "list_dir" => {
-            let tree = EditorFs::list_tree(&root)?;
+            let path = args.get("path").and_then(|p| p.as_str()).unwrap_or("");
+            let recursive = args.get("recursive").and_then(|r| r.as_bool()).unwrap_or(true);
+            let tree = EditorFs::list_dir_subset(&root, path, recursive)?;
             serde_json::to_string(&tree).map_err(|e| e.to_string())
         }
         "search" => {
@@ -195,7 +313,7 @@ async fn execute_agent_tool(
         "apply_diff" => {
             let tx: ApplyTransaction =
                 serde_json::from_value(args).map_err(|e| format!("Invalid apply_diff payload: {}", e))?;
-            let mut tx_mgr = state.tx_mgr.lock().unwrap();
+            let mut tx_mgr = state.tx_mgr.lock().map_err(|_| "Tx lock poisoned")?;
             tx_mgr.execute_transaction(tx).map_err(|e| e.to_string())?;
             Ok("Successfully applied diff transaction across files.".into())
         }
@@ -203,8 +321,9 @@ async fn execute_agent_tool(
             let tx_id = args
                 .get("transaction_id")
                 .and_then(|id| id.as_str())
+                .or_else(|| args.get("id").and_then(|id| id.as_str()))
                 .ok_or("Missing 'transaction_id' argument")?;
-            let mut tx_mgr = state.tx_mgr.lock().unwrap();
+            let mut tx_mgr = state.tx_mgr.lock().map_err(|_| "Tx lock poisoned")?;
             tx_mgr.rollback_checkpoint(tx_id).map_err(|e| e.to_string())?;
             Ok(format!("Successfully rolled back transaction {}.", tx_id))
         }

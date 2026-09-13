@@ -20,6 +20,7 @@ export interface ToolDefinition {
 }
 
 export interface StreamOptions {
+  provider?: "anthropic" | "openai" | "openrouter" | "gemini" | "ollama";
   model?: string;
   system?: string;
   signal?: AbortSignal;
@@ -72,6 +73,7 @@ export async function* streamLlm(
 
   void invoke("start_llm_stream", {
     streamId,
+    provider: options.provider,
     model: options.model ?? "claude-3-7-sonnet-20250219",
     system: options.system ?? "You are Yones IDE agent. You output unified SEARCH/REPLACE blocks for file modifications.",
     messages,

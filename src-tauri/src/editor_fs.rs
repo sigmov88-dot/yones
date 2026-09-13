@@ -60,6 +60,62 @@ impl EditorFs {
         Ok(entries)
     }
 
+    pub fn list_dir_subset<P: AsRef<Path>>(root: P, sub_path: &str, recursive: bool) -> Result<Vec<FileNodeInfo>, String> {
+        let jail = FsJail::new(&root).map_err(|e| e.to_string())?;
+        let root_path = jail.root();
+
+        let target_dir = if sub_path.trim().is_empty() || sub_path == "." {
+            root_path.to_path_buf()
+        } else {
+            jail.secure_resolve(sub_path).map_err(|e| e.to_string())?
+        };
+
+        if !target_dir.is_dir() {
+            return Err(format!("Path '{}' is not a directory", sub_path));
+        }
+
+        let max_depth = if recursive { Some(6) } else { Some(1) };
+        let mut entries = Vec::new();
+        let walker = WalkBuilder::new(&target_dir)
+            .hidden(false)
+            .git_ignore(true)
+            .max_depth(max_depth)
+            .build();
+
+        for result in walker {
+            match result {
+                Ok(entry) => {
+                    let path = entry.path();
+                    if path == target_dir {
+                        continue;
+                    }
+
+                    if let Ok(relative) = path.strip_prefix(root_path) {
+                        if jail.is_blocked(relative) {
+                            continue;
+                        }
+
+                        let depth = relative.components().count();
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
+                        entries.push(FileNodeInfo {
+                            path: relative.to_string_lossy().replace('\\', "/"),
+                            name,
+                            is_dir,
+                            depth,
+                        });
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Walk error: {}", err);
+                }
+            }
+        }
+
+        Ok(entries)
+    }
+
     pub fn read_file<P: AsRef<Path>>(root: P, relative_path: &str) -> Result<String, String> {
         let jail = FsJail::new(root).map_err(|e| e.to_string())?;
         let safe_path = jail.secure_resolve(relative_path).map_err(|e| e.to_string())?;

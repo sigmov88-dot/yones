@@ -87,6 +87,21 @@ export function App() {
     }
   };
 
+  const handleSave = async (content?: string) => {
+    const curPath = activeTabPath();
+    if (!curPath) return;
+    const tab = tabs().find((t) => t.path === curPath);
+    const saveContent = content !== undefined ? content : tab?.content ?? "";
+    try {
+      await invoke("save_file_content", { path: curPath, content: saveContent });
+      setTabs((prev) =>
+        prev.map((t) => (t.path === curPath ? { ...t, content: saveContent, isModified: false } : t))
+      );
+    } catch (err) {
+      console.error("Failed to save file:", err);
+    }
+  };
+
   const openFile = async (path: string) => {
     const existing = tabs().find((t) => t.path === path);
     if (existing) {
@@ -97,8 +112,9 @@ export function App() {
     let content = "";
     try {
       content = await invoke<string>("read_file_content", { path });
-    } catch {
-      content = `// Opened file: ${path}\n// Ready for editing with Yones IDE.\n`;
+    } catch (err) {
+      console.error(`Failed to read file '${path}':`, err);
+      content = "";
     }
 
     const name = path.split(/[/\\]/).pop() || path;
@@ -198,6 +214,9 @@ export function App() {
     } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
       e.preventDefault();
       setSidebarTab((prev) => (prev === "search" ? "files" : "search"));
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      void handleSave();
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
       e.preventDefault();
       setAssistantOpen((prev) => !prev);
@@ -361,6 +380,9 @@ export function App() {
                   onClick={() => setActiveTabPath(tab.path)}
                 >
                   <span class="truncate max-w-[120px]">{tab.name}</span>
+                  <Show when={tab.isModified}>
+                    <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] shrink-0" title="Unsaved changes" />
+                  </Show>
                   <button
                     type="button"
                     class="opacity-0 group-hover:opacity-100 text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] p-0.5 rounded hover:bg-[var(--color-bg-panel)] flex items-center justify-center"
@@ -389,6 +411,7 @@ export function App() {
                   initialContent={tab().content}
                   targetLine={activeTabTargetLine()}
                   onDiagnosticsChange={setDiagnosticsCount}
+                  onSave={handleSave}
                   onContentChange={(val) => {
                     setTabs((prev) =>
                       prev.map((t) => (t.path === tab().path ? { ...t, content: val, isModified: true } : t))

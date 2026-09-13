@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
+use crate::fs_jail::FsJail;
 
 #[derive(Error, Debug)]
 pub enum ApplyError {
@@ -12,8 +14,10 @@ pub enum ApplyError {
     MatchFailed(String),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Transaction aborted: file modified externally")]
+    #[error("Transaction aborted: file modified externally: {0}")]
     ConflictDetected(String),
+    #[error("Security path-jail violation: {0}")]
+    JailViolation(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +28,7 @@ pub struct SearchReplaceBlock {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilePatch {
+    #[serde(alias = "filePath", alias = "file_path")]
     pub relative_path: String,
     pub blocks: Vec<SearchReplaceBlock>,
     pub base_checksum: Option<String>,
@@ -31,6 +36,7 @@ pub struct FilePatch {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApplyTransaction {
+    #[serde(alias = "transaction_id")]
     pub id: String,
     pub patches: Vec<FilePatch>,
 }
@@ -73,16 +79,37 @@ impl TransactionManager {
     }
 
     pub fn execute_transaction(&mut self, tx: ApplyTransaction) -> Result<(), ApplyError> {
+        let jail = FsJail::new(&self.root_dir)
+            .map_err(|e| ApplyError::JailViolation(format!("Root jail init failed: {}", e)))?;
+
         let mut backups: HashMap<PathBuf, String> = HashMap::new();
         let mut staged_writes: Vec<(PathBuf, String)> = Vec::new();
 
         for patch in &tx.patches {
-            let target_path = self.root_dir.join(&patch.relative_path);
+            let target_path = jail
+                .secure_resolve(&patch.relative_path)
+                .map_err(|e| ApplyError::JailViolation(format!("{}: {}", patch.relative_path, e)))?;
+
             if !target_path.exists() {
                 return Err(ApplyError::FileNotFound(patch.relative_path.clone()));
             }
 
             let original_content = fs::read_to_string(&target_path)?;
+
+            // Verify base_checksum if provided
+            if let Some(ref expected_checksum) = patch.base_checksum {
+                let mut hasher = Sha256::new();
+                hasher.update(original_content.as_bytes());
+                let actual_checksum = format!("{:x}", hasher.finalize());
+
+                if expected_checksum != &actual_checksum {
+                    return Err(ApplyError::ConflictDetected(format!(
+                        "File '{}' modified externally. Expected sha256 {}, found {}",
+                        patch.relative_path, expected_checksum, actual_checksum
+                    )));
+                }
+            }
+
             backups.insert(target_path.clone(), original_content.clone());
 
             match Self::apply_blocks_to_content(&original_content, &patch.blocks) {
@@ -218,5 +245,53 @@ mod tests {
         assert!(mgr.execute_transaction(tx).is_err());
         assert_eq!(fs::read_to_string(&file1).unwrap(), "alpha\n");
         assert_eq!(fs::read_to_string(&file2).unwrap(), "beta\n");
+    }
+
+    #[test]
+    fn test_path_traversal_in_patch_blocked_by_jail() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let file1 = root.join("a.txt");
+        fs::write(&file1, "content").unwrap();
+
+        let mut mgr = TransactionManager::new(root);
+        let tx = ApplyTransaction {
+            id: "tx-escape".to_string(),
+            patches: vec![FilePatch {
+                relative_path: "../../../escaped.txt".to_string(),
+                blocks: vec![SearchReplaceBlock {
+                    search: "content".to_string(),
+                    replace: "pwned".to_string(),
+                }],
+                base_checksum: None,
+            }],
+        };
+
+        let result = mgr.execute_transaction(tx);
+        assert!(matches!(result, Err(ApplyError::JailViolation(_))));
+    }
+
+    #[test]
+    fn test_base_checksum_conflict_detected() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let file1 = root.join("a.txt");
+        fs::write(&file1, "hello world").unwrap();
+
+        let mut mgr = TransactionManager::new(root);
+        let tx = ApplyTransaction {
+            id: "tx-conflict".to_string(),
+            patches: vec![FilePatch {
+                relative_path: "a.txt".to_string(),
+                blocks: vec![SearchReplaceBlock {
+                    search: "hello".to_string(),
+                    replace: "bye".to_string(),
+                }],
+                base_checksum: Some("wrong_hash_12345".to_string()),
+            }],
+        };
+
+        let result = mgr.execute_transaction(tx);
+        assert!(matches!(result, Err(ApplyError::ConflictDetected(_))));
     }
 }

@@ -1,69 +1,96 @@
 # Yones IDE
 
-> High-performance desktop code editor with embedded AI agent (Tauri v2 + SolidJS + CodeMirror 6).
+> Десктопный прототип кодового редактора со встроенным AI-ассистентом (Tauri v2 + SolidJS + CodeMirror 6).  
+> Desktop code editor prototype with embedded AI assistant, atomic multi-file patch transactions, and path-jail containment.
 
-Yones IDE delivers the engineering feel of a local tool rather than an artificial chat wrapper. AI edits text with unified diff previews, awaiting explicit confirmation from the human developer.
-
----
-
-## Architectural Principles
-
-- **Shell:** Tauri v2 (Rust). Handles file I/O, search, path virtualization, process sandboxing, and secure provider proxying.
-- **UI:** SolidJS + TypeScript (strict). Zero VDOM overhead.
-- **Editor:** CodeMirror 6 with Lezer grammars. Isolated rendering canvas unaffected by sidebar or assistant updates.
-- **Styling:** Tailwind CSS v4 design tokens via `@theme`. Zero hex literals in components.
-- **Safety:** Path-jail containment preventing reads/writes outside workspace root. Strict command allow-list. API secrets stored in OS keychain.
+Yones IDE исследует подход к разработке редактора кода с глубоко интегрированным AI-ассистентом, ориентированным на прозрачность и строгий контроль человека над изменениями в файлах (**human-in-the-loop**).
 
 ---
 
-## Hotkeys
+## 🏛 Архитектура
 
-| Hotkey | Action |
+- **Десктопная платформа (Shell):** [Tauri v2](https://tauri.app/) (Rust). Обеспечивает прямое взаимодействие с ОС, изоляцию файловой системы, защищенное хранилище секретов и проксирование LLM-потоков.
+- **Интерфейс (UI):** [SolidJS](https://solidjs.com/) + TypeScript (strict). Быстрый реактивный UI без накладных расходов Virtual DOM.
+- **Редактор кода:** [CodeMirror 6](https://codemirror.net/) с Lezer-грамматиками. Автономная отрисовка документа, поддержка вкладок, встроенный синтаксический анализатор скобок и пунктуации.
+- **Стилизация:** Tailwind CSS v4 с дизайн-токенами (`@theme`). Полное соответствие дизайн-системе без хардкода hex-значений в компонентах.
+- **Безопасность (Path Jail & Allow-list):**
+  - Модуль `FsJail` принудительно ограничивает чтение, запись и применение патчей пределами корня открытого проекта.
+  - Заблокированы попытки path traversal (`../`) и доступ к конфиденциальным файлам (`.env*`, `.git/config`, `.ssh/`, `*.pem`, `id_*`).
+  - Терминальные команды валидируются по строгому allow-list с таймаутом выполнения (60 сек) и лимитом вывода (64 КБ).
+- **Секреты:** Приоритетное хранение API-ключей в системном защищенном хранилище ОС (Windows Credential Manager / macOS Keychain / Secret Service). Маскирование ключей в UI.
+- **LLM Multi-Provider:** Прямой стриминг (SSE) через Rust-бэкенд для Anthropic Claude, OpenAI, OpenRouter, Google Gemini и локального Ollama, с поддержкой tool calling и расчетом стоимости токенов.
+
+---
+
+## ⌨ Горячие клавиши
+
+| Сочетание клавиш | Действие |
 |---|---|
-| `Cmd+O` / `Ctrl+O` | Open Project Folder |
-| `Cmd+K` / `Ctrl+K` | Inline Edit (on selection) |
-| `Cmd+L` / `Ctrl+L` | Assistant Panel (with `@` context) |
-| `Tab` | Accept Ghost Completion |
-| `Cmd+Enter` / `Ctrl+Enter` | Apply Inline Diff / Edit |
-| `Esc` | Abort Stream (≤ 100 ms) / Dismiss Overlay |
-| `Cmd+Z` / `Ctrl+Z` | Undo Modification |
+| `Cmd+O` / `Ctrl+O` | Открыть папку проекта |
+| `Cmd+P` / `Ctrl+P` | Быстрое открытие файла (Quick Open) |
+| `Cmd+S` / `Ctrl+S` | Сохранить активный файл на диск |
+| `Cmd+Shift+F` / `Ctrl+Shift+F` | Поиск по проекту (ripgrep) |
+| `Cmd+K` / `Ctrl+K` | Встроенное редактирование через AI (Inline Edit) |
+| `Cmd+L` / `Ctrl+L` | Открыть/закрыть панель AI-ассистента |
+| `Cmd+Enter` / `Ctrl+Enter` | Применить inline-изменения |
+| `Tab` | Принять inline-дополнение |
+| `Esc` | Прервать стриминг / закрыть модальное окно |
+| `Cmd+Z` / `Ctrl+Z` | Отменить изменение в редакторе |
 
 ---
 
-## Verification & Definition of Done
+## 🔍 Текущий статус и ограничения
 
-1. **Install dependencies:**
-   ```bash
-   pnpm install
-   ```
+> [!NOTE]
+> Yones IDE на текущем этапе — **активно развивающийся прототип**, а не замена зрелым IDE.
 
-2. **Run Unit Tests (Vitest):**
-   ```bash
-   pnpm test
-   ```
-
-3. **Run Typing Benchmark (p99 ≤ 8 ms):**
-   ```bash
-   pnpm bench
-   ```
-
-4. **Verify Zero Hex Literals (ESLint):**
-   ```bash
-   pnpm lint
-   ```
-
-5. **Run Rust Path-Jail & Transaction Tests:**
-   ```bash
-   cargo test --manifest-path src-tauri/Cargo.toml
-   ```
-
-6. **Launch Desktop App:**
-   ```bash
-   pnpm tauri dev
-   ```
+- **Синтаксическая диагностика:** проверка структуры скобок, кавычек и синтаксиса выполняется на клиенте через CodeMirror linter; полноценный внешний LSP-демон в разработке.
+- **Человеческий контроль:** диффы, сгенерированные ассистентом, требуют явного подтверждения пользователя («Apply») перед записью на диск.
+- **Откат транзакций:** каждое применение многофайлового патча фиксируется в памяти и может быть мгновенно отменено («Revert Step»).
 
 ---
 
-## License
+## 🚀 Сборка и запуск
 
-MIT
+### Требования
+- Node.js ≥ 20
+- pnpm ≥ 9
+- Rust (toolchain `stable-x86_64-pc-windows-gnu` или msvc с C++ Build Tools)
+
+### 1. Установка зависимостей
+```bash
+pnpm install
+```
+
+### 2. Запуск в режиме разработки (Web)
+```bash
+pnpm dev
+```
+Откройте `http://localhost:1420`.
+
+### 3. Запуск десктопного приложения (Tauri)
+```bash
+pnpm tauri dev
+```
+
+### 4. Запуск тестов
+```bash
+# Frontend Unit & E2E тесты (Vitest)
+pnpm test
+
+# Бенчмарк задержки ввода (p99 ≤ 8 ms)
+pnpm bench
+
+# Линтинг (проверка типов и дизайн-токенов)
+pnpm lint
+pnpm tsc --noEmit
+
+# Тесты Rust (FsJail, атомарные транзакции, откат)
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+---
+
+## 📄 Лицензия
+
+[MIT](LICENSE) © 2026 sigmov88-dot

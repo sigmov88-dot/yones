@@ -51,65 +51,45 @@ impl SecretManager {
         }
     }
 
-    pub fn get_key(provider: &str) -> Result<String, String> {
-        // 1. Check in-memory cache
-        {
-            let mut cache = IN_MEMORY_CACHE.lock().unwrap();
-            if let Some(ref map) = *cache {
-                if let Some(val) = map.get(provider) {
-                    if !val.trim().is_empty() {
-                        return Ok(val.clone());
-                    }
-                }
-            } else {
-                let file_map = Self::read_fallback_file();
-                *cache = Some(file_map);
-            }
+    fn get_env_key(provider: &str) -> Option<String> {
+        let val = match provider {
+            "anthropic" => std::env::var("ANTHROPIC_API_KEY")
+                .or_else(|_| std::env::var("ANTHROPIC_AUTH_TOKEN")),
+            "openai" => std::env::var("OPENAI_API_KEY"),
+            "openrouter" => std::env::var("OPENROUTER_API_KEY"),
+            "gemini" => std::env::var("GEMINI_API_KEY"),
+            _ => Err(std::env::VarError::NotPresent),
+        };
+
+        match val {
+            Ok(k) if !k.trim().is_empty() => Some(k.trim().to_string()),
+            _ => None,
+        }
+    }
+
+    pub fn get_key_with_source(provider: &str) -> Result<(String, String), String> {
+        // 1. Check environment variables
+        if let Some(val) = Self::get_env_key(provider) {
+            return Ok((val, "environment".to_string()));
         }
 
-        // 2. Check environment variables
-        match provider {
-            "anthropic" => {
-                if let Ok(val) = std::env::var("ANTHROPIC_API_KEY") {
-                    if !val.trim().is_empty() {
-                        return Ok(val.trim().to_string());
-                    }
-                }
-                if let Ok(val) = std::env::var("ANTHROPIC_AUTH_TOKEN") {
-                    if !val.trim().is_empty() {
-                        return Ok(val.trim().to_string());
-                    }
-                }
-            }
-            "openai" => {
-                if let Ok(val) = std::env::var("OPENAI_API_KEY") {
-                    if !val.trim().is_empty() {
-                        return Ok(val.trim().to_string());
-                    }
-                }
-            }
-            "openrouter" => {
-                if let Ok(val) = std::env::var("OPENROUTER_API_KEY") {
-                    if !val.trim().is_empty() {
-                        return Ok(val.trim().to_string());
-                    }
-                }
-            }
-            "gemini" => {
-                if let Ok(val) = std::env::var("GEMINI_API_KEY") {
-                    if !val.trim().is_empty() {
-                        return Ok(val.trim().to_string());
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        // 3. Check OS keyring
+        // 2. Check OS keyring
         if let Ok(entry) = Entry::new(SERVICE_NAME, provider) {
             if let Ok(pwd) = entry.get_password() {
                 if !pwd.trim().is_empty() {
-                    return Ok(pwd.trim().to_string());
+                    return Ok((pwd.trim().to_string(), "keyring".to_string()));
+                }
+            }
+        }
+
+        // 3. Check in-memory cache
+        {
+            let cache = IN_MEMORY_CACHE.lock().unwrap();
+            if let Some(ref map) = *cache {
+                if let Some(val) = map.get(provider) {
+                    if !val.trim().is_empty() {
+                        return Ok((val.clone(), "memory".to_string()));
+                    }
                 }
             }
         }
@@ -118,27 +98,45 @@ impl SecretManager {
         let file_map = Self::read_fallback_file();
         if let Some(val) = file_map.get(provider) {
             if !val.trim().is_empty() {
-                return Ok(val.trim().to_string());
+                return Ok((val.trim().to_string(), "file".to_string()));
             }
         }
 
         Err(format!("No API key found for provider '{}'", provider))
     }
 
+    pub fn get_key(provider: &str) -> Result<String, String> {
+        Self::get_key_with_source(provider).map(|(k, _)| k)
+    }
+
     pub fn set_key(provider: &str, secret: &str) -> Result<(), String> {
         let trimmed = secret.trim();
 
-        // 1. Update OS keyring
+        // 1. Attempt to update OS keyring
+        let mut keyring_succeeded = false;
         if let Ok(entry) = Entry::new(SERVICE_NAME, provider) {
-            let _ = entry.set_password(trimmed);
+            if entry.set_password(trimmed).is_ok() {
+                keyring_succeeded = true;
+            }
         }
 
-        // 2. Update in-memory cache and fallback file
+        // 2. Update cache and manage fallback file:
+        // If keyring succeeded, remove any leftover plaintext file entry!
+        // Only write plaintext fallback if keyring is unavailable.
         {
             let mut cache = IN_MEMORY_CACHE.lock().unwrap();
             let mut map = cache.take().unwrap_or_else(Self::read_fallback_file);
             map.insert(provider.to_string(), trimmed.to_string());
-            Self::write_fallback_file(&map);
+
+            if keyring_succeeded {
+                let mut file_map = Self::read_fallback_file();
+                if file_map.remove(provider).is_some() {
+                    Self::write_fallback_file(&file_map);
+                }
+            } else {
+                Self::write_fallback_file(&map);
+            }
+
             *cache = Some(map);
         }
 
@@ -164,22 +162,13 @@ impl SecretManager {
     }
 
     pub fn get_status(provider: &str) -> KeyStatus {
-        let key_res = Self::get_key(provider);
-        match key_res {
-            Ok(key) if !key.trim().is_empty() => {
+        match Self::get_key_with_source(provider) {
+            Ok((key, source)) if !key.trim().is_empty() => {
                 let len = key.len();
                 let masked = if len <= 8 {
                     "••••••••".to_string()
                 } else {
-                    let start = &key[..std::cmp::min(7, len)];
-                    let end = &key[len.saturating_sub(4)..];
-                    format!("{}...{}", start, end)
-                };
-
-                let source = if std::env::var(format!("{}_API_KEY", provider.to_uppercase())).is_ok() {
-                    "environment".to_string()
-                } else {
-                    "keyring".to_string()
+                    format!("••••••••...{}", &key[len.saturating_sub(4)..])
                 };
 
                 KeyStatus {
