@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum LlmEvent {
+    ThinkingDelta(String),
     TextDelta(String),
     ToolCall { id: String, name: String, arguments: String },
     ToolResult { id: String, result: String },
@@ -371,6 +372,10 @@ impl LlmService {
                                         if let Some(text) = delta.get("text").and_then(|t| t.as_str()) {
                                             let _ = channel.send(LlmEvent::TextDelta(text.to_string()));
                                         }
+                                    } else if delta_type == "thinking_delta" {
+                                        if let Some(thinking) = delta.get("thinking").and_then(|t| t.as_str()) {
+                                            let _ = channel.send(LlmEvent::ThinkingDelta(thinking.to_string()));
+                                        }
                                     } else if delta_type == "input_json_delta" {
                                         if let Some(partial) = delta.get("partial_json").and_then(|p| p.as_str()) {
                                             if let Some((_, _, args)) = active_tools.get_mut(&idx) {
@@ -452,6 +457,16 @@ impl LlmService {
                     if let Some(choices) = val.get("choices").and_then(|c| c.as_array()) {
                         for choice in choices {
                             if let Some(delta) = choice.get("delta") {
+                                if let Some(reasoning) = delta.get("reasoning_content").and_then(|c| c.as_str()) {
+                                    if !reasoning.is_empty() {
+                                        let _ = channel.send(LlmEvent::ThinkingDelta(reasoning.to_string()));
+                                    }
+                                } else if let Some(reasoning) = delta.get("reasoning").and_then(|c| c.as_str()) {
+                                    if !reasoning.is_empty() {
+                                        let _ = channel.send(LlmEvent::ThinkingDelta(reasoning.to_string()));
+                                    }
+                                }
+
                                 if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
                                     let _ = channel.send(LlmEvent::TextDelta(content.to_string()));
                                 }

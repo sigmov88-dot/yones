@@ -410,3 +410,90 @@ export function EyeOffIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function BrainIcon(props: IconProps) {
+  const size = () => props.size ?? 14;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+      <path d="M12 5v13" />
+      <path d="m15 9-3 3" />
+      <path d="m9 9 3 3" />
+      <path d="m15 15-3-3" />
+      <path d="m9 15 3-3" />
+    </svg>
+  );
+}
+
+export function CopyIcon(props: IconProps) {
+  const size = () => props.size ?? 12;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </svg>
+  );
+}
+
+export function RotateCwIcon(props: IconProps) {
+  const size = () => props.size ?? 12;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+    </svg>
+  );
+}
+
+export function TrashIcon(props: IconProps) {
+  const size = () => props.size ?? 13;
+  return (
+    <svg
+      width={size()}
+      height={size()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+

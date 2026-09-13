@@ -14,6 +14,7 @@ import {
   SparklesIcon,
   SearchIcon,
   KeyIcon,
+  TrashIcon,
 } from "../ui/icons";
 import {
   getActiveModel,
@@ -141,18 +142,50 @@ export function AssistantPanel(props: AssistantPanelProps) {
     }
   };
 
+  const clearChat = () => {
+    abortController?.abort();
+    streamReducer.abort();
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        text: getWelcomeText(),
+      },
+    ]);
+  };
+
+  const handleRetry = (idx: number) => {
+    const list = messages();
+    const failedMsg = list[idx];
+    if (!failedMsg) return;
+
+    let userPrompt = "";
+    for (let i = idx - 1; i >= 0; i--) {
+      if (list[i].role === "user") {
+        userPrompt = list[i].text;
+        break;
+      }
+    }
+    if (userPrompt) {
+      setMessages((prev) => prev.filter((_, i) => i !== idx));
+      void sendMessageWithText(userPrompt);
+    }
+  };
+
   const sendMessage = async () => {
     const text = inputVal().trim();
     if (!text) return;
+    setInputVal("");
+    setMentionMenuOpen(false);
+    await sendMessageWithText(text);
+  };
 
+  const sendMessageWithText = async (text: string) => {
     const chosenModel = activeModel();
     if (!chosenModel) {
       props.onOpenSettings?.("keys");
       return;
     }
-
-    setInputVal("");
-    setMentionMenuOpen(false);
 
     const userMsgId = crypto.randomUUID();
     const assistantMsgId = crypto.randomUUID();
@@ -160,7 +193,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
     setMessages((prev) => [
       ...prev,
       { id: userMsgId, role: "user", text },
-      { id: assistantMsgId, role: "assistant", text: "", toolCalls: [] },
+      { id: assistantMsgId, role: "assistant", text: "", thinking: "", isThinking: false, toolCalls: [] },
     ]);
 
     abortController = new AbortController();
@@ -198,15 +231,54 @@ export function AssistantPanel(props: AssistantPanelProps) {
         });
 
         let accumulatedText = "";
+        let accumulatedThinking = "";
         let pendingToolCall: { id: string; name: string; arguments: string } | null = null;
 
         for await (const event of stream) {
           streamReducer.processEvent(event);
 
-          if (event.type === "TextDelta") {
-            accumulatedText += event.payload;
+          if (event.type === "ThinkingDelta") {
+            accumulatedThinking += event.payload;
             setMessages((prev) =>
-              prev.map((m) => (m.id === assistantMsgId ? { ...m, text: accumulatedText } : m))
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      thinking: accumulatedThinking,
+                      isThinking: true,
+                      thinkingDurationMs: streamReducer.state().thinkingDurationMs,
+                    }
+                  : m
+              )
+            );
+          } else if (event.type === "TextDelta") {
+            accumulatedText += event.payload;
+            const curThinking = streamReducer.state().thinkingText || accumulatedThinking;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      text: accumulatedText,
+                      thinking: curThinking,
+                      isThinking: streamReducer.state().isThinking,
+                      thinkingDurationMs: streamReducer.state().thinkingDurationMs,
+                    }
+                  : m
+              )
+            );
+          } else if (event.type === "Error") {
+            const errPayload = event.payload;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      error: errPayload,
+                      isThinking: false,
+                    }
+                  : m
+              )
             );
           } else if (event.type === "ToolCall") {
             pendingToolCall = event.payload;
@@ -230,6 +302,21 @@ export function AssistantPanel(props: AssistantPanelProps) {
             );
           }
         }
+
+        // Finalize thinking state for this turn
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId
+              ? {
+                  ...m,
+                  isThinking: false,
+                  thinking: streamReducer.state().thinkingText || m.thinking,
+                  thinkingDurationMs:
+                    streamReducer.state().thinkingDurationMs || m.thinkingDurationMs,
+                }
+              : m
+          )
+        );
 
         if (pendingToolCall) {
           const toolResult = await executeTool(pendingToolCall.name, pendingToolCall.arguments);
@@ -268,8 +355,30 @@ export function AssistantPanel(props: AssistantPanelProps) {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name !== "AbortError") {
-        console.error("Assistant execution error:", err);
+        const errString = (err as Error)?.message || String(err);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId
+              ? {
+                  ...m,
+                  error: errString,
+                  isThinking: false,
+                }
+              : m
+          )
+        );
       }
+    } finally {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? {
+                ...m,
+                isThinking: false,
+              }
+            : m
+        )
+      );
     }
   };
 
@@ -337,6 +446,14 @@ export function AssistantPanel(props: AssistantPanelProps) {
           </Show>
           <button
             type="button"
+            class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-1 rounded hover:bg-[var(--color-bg-active)] flex items-center gap-1 text-[11px] transition-colors"
+            title="Clear Chat history"
+            onClick={clearChat}
+          >
+            <TrashIcon class="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
             class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-1 rounded hover:bg-[var(--color-bg-active)] flex items-center gap-1 text-[11px]"
             title="Configure Models (Cursor-style toggles)"
             onClick={() => props.onOpenSettings?.("models")}
@@ -371,6 +488,13 @@ export function AssistantPanel(props: AssistantPanelProps) {
         messages={messages()}
         onApplyPatches={applyPatchesFromMessage}
         onRevertPatches={revertPatchesFromMessage}
+        onOpenSettings={props.onOpenSettings}
+        onRetry={handleRetry}
+        onSelectPrompt={(p) => {
+          setInputVal(p);
+          inputRef?.focus();
+          void sendMessageWithText(p);
+        }}
       />
 
       <Show when={contextFiles().length > 0}>

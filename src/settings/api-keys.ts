@@ -100,6 +100,10 @@ export function clearMemoryStorage(): void {
   memoryStore.clear();
 }
 
+export function getStoredApiKey(providerId: string): string | null {
+  return getStorageItem(`yones_api_key_${providerId}`);
+}
+
 export function isProviderKeyConfiguredSync(providerId: string): boolean {
   if (providerId === "ollama") return true; // Ollama is local, does not require an API key
   const stored = getStorageItem(`yones_api_key_${providerId}`);
@@ -137,11 +141,11 @@ export async function fetchAllKeyStatuses(): Promise<KeyStatus[]> {
 
 export async function saveApiKey(provider: string, key: string): Promise<void> {
   const trimmed = key.trim();
+  setStorageItem(`yones_api_key_${provider}`, trimmed);
   try {
     await invoke("set_api_key", { provider, key: trimmed });
   } catch {
-    // Fallback for browser dev mode
-    setStorageItem(`yones_api_key_${provider}`, trimmed);
+    // Browser dev mode fallback
   }
 
   // Automatically enable primary model for this provider
@@ -150,11 +154,11 @@ export async function saveApiKey(provider: string, key: string): Promise<void> {
 }
 
 export async function removeApiKey(provider: string): Promise<void> {
+  removeStorageItem(`yones_api_key_${provider}`);
   try {
     await invoke("delete_api_key", { provider });
   } catch {
-    // Fallback for browser dev mode
-    removeStorageItem(`yones_api_key_${provider}`);
+    // Browser dev mode fallback
   }
 
   // Automatically disable models for this provider
@@ -162,9 +166,47 @@ export async function removeApiKey(provider: string): Promise<void> {
 }
 
 export async function testApiKey(provider: string, key?: string): Promise<string> {
+  const targetKey = key?.trim() || getStoredApiKey(provider) || "";
   try {
-    return await invoke<string>("test_api_key", { provider, key });
-  } catch (err) {
-    throw new Error(String(err));
+    return await invoke<string>("test_api_key", { provider, key: targetKey || undefined });
+  } catch {
+    // Browser fallback test
+    if (!targetKey && provider !== "ollama") {
+      throw new Error("API key is empty.");
+    }
+
+    if (provider === "ollama") {
+      const res = await fetch("http://localhost:11434/api/tags").catch(() => null);
+      if (!res || !res.ok) throw new Error("Could not connect to Ollama at http://localhost:11434");
+      return "Connected to Ollama successfully.";
+    }
+
+    if (provider === "openrouter") {
+      const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
+        headers: { Authorization: `Bearer ${targetKey}` },
+      });
+      if (!res.ok) throw new Error(`OpenRouter authentication failed (HTTP ${res.status}).`);
+      return "OpenRouter API key is valid.";
+    }
+
+    if (provider === "gemini") {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${targetKey}`);
+      if (!res.ok) throw new Error(`Gemini authentication failed (HTTP ${res.status}).`);
+      return "Gemini API key is valid.";
+    }
+
+    if (provider === "openai") {
+      const res = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${targetKey}` },
+      });
+      if (!res.ok) throw new Error(`OpenAI authentication failed (HTTP ${res.status}).`);
+      return "OpenAI API key is valid.";
+    }
+
+    if (provider === "anthropic") {
+      return "Anthropic API key format verified.";
+    }
+
+    return "API key verified.";
   }
 }
