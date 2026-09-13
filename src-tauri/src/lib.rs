@@ -1,7 +1,9 @@
 pub mod apply;
+pub mod ast;
 pub mod editor_fs;
 pub mod fs_jail;
 pub mod llm;
+pub mod lsp;
 pub mod search;
 pub mod secrets;
 pub mod shell;
