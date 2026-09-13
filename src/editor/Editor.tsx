@@ -1,17 +1,20 @@
-import { onMount, onCleanup, createSignal, Show } from "solid-js";
+import { onMount, onCleanup, createSignal, createEffect, Show } from "solid-js";
 import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLine, highlightActiveLineGutter, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, undo, redo } from "@codemirror/commands";
 import { yonesThemeExtension } from "./theme";
 import { getLanguageExtension } from "./lezer";
 import { ghostTextExtension, setGhostText } from "./ghost";
+import { createLspDiagnosticsExtension, type DiagnosticCount } from "./diagnostics";
 import { InlineEdit } from "./inline-edit";
 
 export interface EditorProps {
   filePath: string;
   initialContent: string;
+  targetLine?: number;
   onContentChange?: (newContent: string) => void;
   onSave?: (content: string) => void;
+  onDiagnosticsChange?: (counts: DiagnosticCount) => void;
 }
 
 export function Editor(props: EditorProps) {
@@ -95,6 +98,7 @@ export function Editor(props: EditorProps) {
         yonesThemeExtension,
         getLanguageExtension(props.filePath),
         ghostTextExtension(),
+        createLspDiagnosticsExtension(props.onDiagnosticsChange),
         customKeymap,
         keymap.of(historyKeymap),
         keymap.of(defaultKeymap),
@@ -110,6 +114,33 @@ export function Editor(props: EditorProps) {
       state,
       parent: editorParent,
     });
+
+    if (props.targetLine && props.targetLine > 0) {
+      try {
+        const line = view.state.doc.line(Math.min(props.targetLine, view.state.doc.lines));
+        view.dispatch({
+          selection: { anchor: line.from },
+          scrollIntoView: true,
+        });
+      } catch (e) {
+        console.error("Scroll to line error:", e);
+      }
+    }
+  });
+
+  createEffect(() => {
+    const target = props.targetLine;
+    if (view && target && target > 0) {
+      try {
+        const line = view.state.doc.line(Math.min(target, view.state.doc.lines));
+        view.dispatch({
+          selection: { anchor: line.from },
+          scrollIntoView: true,
+        });
+      } catch (e) {
+        console.error("Scroll to line error:", e);
+      }
+    }
   });
 
   onCleanup(() => {

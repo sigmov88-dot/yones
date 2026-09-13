@@ -3,6 +3,8 @@ import { Show } from "solid-js";
 export interface StatusBarProps {
   gitBranch?: string;
   gitModifiedCount?: number;
+  errorCount?: number;
+  warningCount?: number;
   language?: string;
   cursorLine?: number;
   cursorCol?: number;
@@ -28,9 +30,17 @@ export function StatusBar(props: StatusBarProps) {
 
         <span class="opacity-20">|</span>
 
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1.5">
           <span class="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-          <span>LSP: Connected</span>
+          <span>LSP</span>
+          <span class="flex items-center gap-1 font-mono text-[10px]">
+            <span class="text-[var(--color-danger)] font-medium">
+              &otimes; {props.errorCount ?? 0}
+            </span>
+            <span class="text-[var(--color-warning)] font-medium">
+              &#9888; {props.warningCount ?? 0}
+            </span>
+          </span>
         </div>
       </div>
 

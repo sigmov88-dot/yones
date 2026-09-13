@@ -151,6 +151,15 @@ async fn execute_agent_tool(
             tx_mgr.execute_transaction(tx).map_err(|e| e.to_string())?;
             Ok("Successfully applied diff transaction across files.".into())
         }
+        "rollback_transaction" => {
+            let tx_id = args
+                .get("transaction_id")
+                .and_then(|id| id.as_str())
+                .ok_or("Missing 'transaction_id' argument")?;
+            let mut tx_mgr = state.tx_mgr.lock().unwrap();
+            tx_mgr.rollback_checkpoint(tx_id).map_err(|e| e.to_string())?;
+            Ok(format!("Successfully rolled back transaction {}.", tx_id))
+        }
         "run_command" => {
             let cmd = args
                 .get("command")

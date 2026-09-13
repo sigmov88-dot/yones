@@ -3,6 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { Editor } from "./editor/Editor";
 import { Tree, type FileNode } from "./files/Tree";
+import { QuickOpen } from "./files/QuickOpen";
+import { SearchPanel } from "./files/SearchPanel";
 import { AssistantPanel } from "./assistant/Panel";
 import { StatusBar } from "./ui/StatusBar";
 
@@ -19,10 +21,17 @@ export function App() {
   const [files, setFiles] = createSignal<FileNode[]>([]);
   const [tabs, setTabs] = createSignal<OpenTab[]>([]);
   const [activeTabPath, setActiveTabPath] = createSignal<string | null>(null);
+  const [activeTabTargetLine, setActiveTabTargetLine] = createSignal<number | undefined>(undefined);
+  const [sidebarTab, setSidebarTab] = createSignal<"files" | "search">("files");
+  const [quickOpenOpen, setQuickOpenOpen] = createSignal(false);
   const [assistantOpen, setAssistantOpen] = createSignal(false);
   const [gitBranch] = createSignal("main");
   const [sessionCost] = createSignal(0);
   const [totalTokens] = createSignal(0);
+  const [diagnosticsCount, setDiagnosticsCount] = createSignal<{ errors: number; warnings: number }>({
+    errors: 0,
+    warnings: 0,
+  });
 
   const toggleTheme = () => {
     const next = theme() === "dark" ? "light" : "dark";
@@ -84,6 +93,11 @@ export function App() {
     setActiveTabPath(path);
   };
 
+  const openFileAtLine = async (path: string, line: number) => {
+    await openFile(path);
+    setActiveTabTargetLine(line);
+  };
+
   const closeTab = (path: string, e: MouseEvent) => {
     e.stopPropagation();
     const remaining = tabs().filter((t) => t.path !== path);
@@ -94,13 +108,19 @@ export function App() {
   };
 
   const handleApplyMultiFilePatch = async (
-    patches: { filePath: string; blocks: { search: string; replace: string }[] }[]
-  ) => {
+    patches: { filePath: string; blocks: { search: string; replace: string }[] }[],
+    txId: string
+  ): Promise<boolean> => {
     try {
-      const txId = crypto.randomUUID();
       await invoke("execute_agent_tool", {
         name: "apply_diff",
-        args: { transaction_id: txId, patches },
+        args: {
+          transaction_id: txId,
+          patches: patches.map((p) => ({
+            relative_path: p.filePath,
+            blocks: p.blocks,
+          })),
+        },
       });
 
       // Reload opened tabs
@@ -117,8 +137,38 @@ export function App() {
           }
         }
       }
+      return true;
     } catch (err) {
       console.error("Apply multi-file patch error:", err);
+      return false;
+    }
+  };
+
+  const handleRevertMultiFilePatch = async (txId: string, filePaths: string[]): Promise<boolean> => {
+    try {
+      await invoke("execute_agent_tool", {
+        name: "rollback_transaction",
+        args: { transaction_id: txId },
+      });
+
+      // Reload affected opened tabs
+      for (const filePath of filePaths) {
+        const opened = tabs().find((t) => t.path.endsWith(filePath) || filePath.endsWith(t.path));
+        if (opened) {
+          try {
+            const updated = await invoke<string>("read_file_content", { path: opened.path });
+            setTabs((prev) =>
+              prev.map((t) => (t.path === opened.path ? { ...t, content: updated, isModified: false } : t))
+            );
+          } catch (e) {
+            console.error("Failed to reload file after rollback:", e);
+          }
+        }
+      }
+      return true;
+    } catch (err) {
+      console.error("Rollback multi-file patch error:", err);
+      return false;
     }
   };
 
@@ -128,6 +178,12 @@ export function App() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "o") {
       e.preventDefault();
       void handleOpenFolder();
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+      e.preventDefault();
+      setQuickOpenOpen((prev) => !prev);
+    } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      setSidebarTab((prev) => (prev === "search" ? "files" : "search"));
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
       e.preventDefault();
       setAssistantOpen((prev) => !prev);
@@ -161,10 +217,17 @@ export function App() {
           <span class="text-[10px] text-[var(--color-fg-muted)]">v2.0</span>
           <button
             type="button"
-            class="ml-3 px-2 py-0.5 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]"
+            class="ml-2 px-2 py-0.5 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]"
             onClick={handleOpenFolder}
           >
             Open Folder (Cmd+O)
+          </button>
+          <button
+            type="button"
+            class="px-2 py-0.5 text-xs rounded bg-[var(--color-bg-raised)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] cursor-pointer text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]"
+            onClick={() => setQuickOpenOpen(true)}
+          >
+            Quick Open (Cmd+P)
           </button>
         </div>
 
@@ -190,14 +253,53 @@ export function App() {
 
       {/* Main Workspace Area */}
       <div class="flex-1 flex overflow-hidden">
-        {/* File Tree (Left Sidebar) */}
-        <div class="w-60 h-full flex-shrink-0">
-          <Tree
-            files={files()}
-            activeFile={activeTabPath()}
-            onSelectFile={openFile}
-            onToggleDir={(d) => console.log("Toggle dir", d)}
-          />
+        {/* Left Sidebar (Files / Search) */}
+        <div class="w-64 h-full flex-shrink-0 flex flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)]">
+          {/* Sidebar Tab Header */}
+          <div class="h-8 flex items-center border-b border-[var(--color-border-subtle)] px-2 gap-1 select-none">
+            <button
+              type="button"
+              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors"
+              classList={{
+                "bg-[var(--color-bg-active)] text-[var(--color-fg-primary)]": sidebarTab() === "files",
+                "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)]": sidebarTab() !== "files",
+              }}
+              onClick={() => setSidebarTab("files")}
+            >
+              Files
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors"
+              classList={{
+                "bg-[var(--color-bg-active)] text-[var(--color-fg-primary)]": sidebarTab() === "search",
+                "text-[var(--color-fg-muted)] hover:text-[var(--color-fg-secondary)]": sidebarTab() !== "search",
+              }}
+              onClick={() => setSidebarTab("search")}
+            >
+              Search (Cmd+Shift+F)
+            </button>
+          </div>
+
+          <div class="flex-1 overflow-hidden">
+            <Show when={sidebarTab() === "files"}>
+              <Tree
+                files={files()}
+                activeFile={activeTabPath()}
+                onSelectFile={(path) => {
+                  setActiveTabTargetLine(undefined);
+                  void openFile(path);
+                }}
+                onToggleDir={(d) => console.log("Toggle dir", d)}
+              />
+            </Show>
+            <Show when={sidebarTab() === "search"}>
+              <SearchPanel
+                onSelectMatch={openFileAtLine}
+                onClose={() => setSidebarTab("files")}
+              />
+            </Show>
+          </div>
         </div>
 
         {/* Editor Area (Center) */}
@@ -235,7 +337,7 @@ export function App() {
               when={activeTab()}
               fallback={
                 <div class="h-full flex items-center justify-center text-xs text-[var(--color-fg-muted)]">
-                  Press Cmd+O to open a project directory or select a file from the tree.
+                  Press Cmd+O to open a project directory or Cmd+P to quick open a file.
                 </div>
               }
             >
@@ -243,6 +345,8 @@ export function App() {
                 <Editor
                   filePath={tab().path}
                   initialContent={tab().content}
+                  targetLine={activeTabTargetLine()}
+                  onDiagnosticsChange={setDiagnosticsCount}
                   onContentChange={(val) => {
                     setTabs((prev) =>
                       prev.map((t) => (t.path === tab().path ? { ...t, content: val, isModified: true } : t))
@@ -261,6 +365,7 @@ export function App() {
               availableFiles={files().map((f) => f.path)}
               currentFilePath={activeTabPath() ?? undefined}
               onApplyMultiFilePatch={handleApplyMultiFilePatch}
+              onRevertMultiFilePatch={handleRevertMultiFilePatch}
               onClose={() => setAssistantOpen(false)}
             />
           </div>
@@ -272,9 +377,23 @@ export function App() {
         gitBranch={gitBranch()}
         theme={theme()}
         onToggleTheme={toggleTheme}
+        errorCount={diagnosticsCount().errors}
+        warningCount={diagnosticsCount().warnings}
         sessionCostUsd={sessionCost()}
         tokensTotal={totalTokens()}
       />
+
+      {/* Quick Open Modal (Cmd+P) */}
+      <Show when={quickOpenOpen()}>
+        <QuickOpen
+          files={files()}
+          onSelect={(path) => {
+            setActiveTabTargetLine(undefined);
+            void openFile(path);
+          }}
+          onClose={() => setQuickOpenOpen(false)}
+        />
+      </Show>
     </div>
   );
 }

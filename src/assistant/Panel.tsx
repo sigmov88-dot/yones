@@ -9,7 +9,11 @@ import { parseSearchReplaceBlocks, generateUnifiedDiff } from "../ai/edit-parser
 export interface AssistantPanelProps {
   availableFiles: string[];
   currentFilePath?: string;
-  onApplyMultiFilePatch: (patches: { filePath: string; blocks: { search: string; replace: string }[] }[]) => void;
+  onApplyMultiFilePatch: (
+    patches: { filePath: string; blocks: { search: string; replace: string }[] }[],
+    txId: string
+  ) => Promise<boolean> | void;
+  onRevertMultiFilePatch?: (txId: string, filePaths: string[]) => Promise<boolean> | void;
   onClose: () => void;
 }
 
@@ -201,13 +205,31 @@ export function AssistantPanel(props: AssistantPanelProps) {
     }
   };
 
-  const applyPatchesFromMessage = (idx: number) => {
+  const applyPatchesFromMessage = async (idx: number) => {
     const msg = messages()[idx];
     if (!msg) return;
 
     const patches = parseSearchReplaceBlocks(msg.text);
     if (patches.length > 0) {
-      props.onApplyMultiFilePatch(patches);
+      const txId = msg.txId || crypto.randomUUID();
+      await props.onApplyMultiFilePatch(patches, txId);
+      setMessages((prev) =>
+        prev.map((m, i) => (i === idx ? { ...m, txId, applied: true } : m))
+      );
+    }
+  };
+
+  const revertPatchesFromMessage = async (idx: number) => {
+    const msg = messages()[idx];
+    if (!msg || !msg.txId) return;
+
+    const patches = parseSearchReplaceBlocks(msg.text);
+    const filePaths = patches.map((p) => p.filePath);
+    if (props.onRevertMultiFilePatch) {
+      await props.onRevertMultiFilePatch(msg.txId, filePaths);
+      setMessages((prev) =>
+        prev.map((m, i) => (i === idx ? { ...m, applied: false } : m))
+      );
     }
   };
 
@@ -238,7 +260,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
         </button>
       </div>
 
-      <MessageList messages={messages()} onApplyPatches={applyPatchesFromMessage} />
+      <MessageList
+        messages={messages()}
+        onApplyPatches={applyPatchesFromMessage}
+        onRevertPatches={revertPatchesFromMessage}
+      />
 
       <Show when={contextFiles().length > 0}>
         <ContextChips

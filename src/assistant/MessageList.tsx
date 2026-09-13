@@ -8,11 +8,14 @@ export interface ChatEntry {
   text: string;
   toolCalls?: { id: string; name: string; args: string; status: "running" | "done" }[];
   filePatches?: { filePath: string; diffLines: DiffLine[] }[];
+  txId?: string;
+  applied?: boolean;
 }
 
 export interface MessageListProps {
   messages: ChatEntry[];
   onApplyPatches?: (entryIndex: number) => void;
+  onRevertPatches?: (entryIndex: number) => void;
 }
 
 export function MessageList(props: MessageListProps) {
@@ -71,14 +74,30 @@ export function MessageList(props: MessageListProps) {
                     )}
                   </For>
 
-                  <div class="mt-2 flex justify-end">
-                    <button
-                      type="button"
-                      class="px-3 py-1 text-xs font-medium rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] active:bg-[var(--color-accent-press)] cursor-pointer"
-                      onClick={() => props.onApplyPatches?.(idx())}
+                  <div class="mt-2 flex items-center justify-end gap-2">
+                    <Show
+                      when={msg.applied}
+                      fallback={
+                        <button
+                          type="button"
+                          class="px-3 py-1 text-xs font-medium rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] active:bg-[var(--color-accent-press)] cursor-pointer"
+                          onClick={() => props.onApplyPatches?.(idx())}
+                        >
+                          Apply All Changes
+                        </button>
+                      }
                     >
-                      Apply All Changes
-                    </button>
+                      <span class="text-[11px] text-[var(--color-success)] flex items-center gap-1 font-medium">
+                        <span>&#10003;</span> Applied
+                      </span>
+                      <button
+                        type="button"
+                        class="px-2.5 py-1 text-xs font-medium rounded bg-[var(--color-bg-panel)] text-[var(--color-fg-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-bg-active)] hover:text-[var(--color-fg-primary)] cursor-pointer"
+                        onClick={() => props.onRevertPatches?.(idx())}
+                      >
+                        Revert Step
+                      </button>
+                    </Show>
                   </div>
                 </div>
               </Show>
