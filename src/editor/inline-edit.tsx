@@ -2,6 +2,7 @@ import { createSignal, onMount, onCleanup, Show, For } from "solid-js";
 import { streamLlm } from "../ai/provider";
 import { createStreamReducer } from "../ai/stream-reducer";
 import { parseSearchReplaceBlocks, generateUnifiedDiff, type DiffLine } from "../ai/edit-parser";
+import { getActiveModel } from "../settings/models";
 
 export interface InlineEditProps {
   selectedText: string;
@@ -56,10 +57,13 @@ export function InlineEdit(props: InlineEditProps) {
       },
     ];
 
+    const currentModel = getActiveModel();
     try {
       const stream = streamLlm(messages, [], {
         system: systemPrompt,
         signal: abortController.signal,
+        model: currentModel.id,
+        provider: currentModel.provider,
       });
 
       for await (const event of stream) {
@@ -153,14 +157,18 @@ export function InlineEdit(props: InlineEditProps) {
       </Show>
 
       <div class="mt-2 flex items-center justify-between text-[11px] text-[var(--color-fg-muted)]">
-        <span>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-panel)] border border-[var(--color-border-subtle)] text-[var(--color-fg-secondary)]">
+            <span class="uppercase text-[8px] text-[var(--color-accent)]">{getActiveModel().provider}</span>
+            <span>{getActiveModel().name}</span>
+          </span>
           <Show
             when={streamReducer.state().isStreaming}
             fallback={<span>Esc: Dismiss &bull; Cmd+Enter: Apply</span>}
           >
             <span>Generating &bull; {streamReducer.state().tokensPerSec} tok/s &bull; Esc to abort</span>
           </Show>
-        </span>
+        </div>
         <Show when={streamReducer.state().costUsd > 0}>
           <span>${streamReducer.state().costUsd.toFixed(5)}</span>
         </Show>

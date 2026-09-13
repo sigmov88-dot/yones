@@ -5,7 +5,21 @@ import { streamLlm, type ChatMessage } from "../ai/provider";
 import { createStreamReducer } from "../ai/stream-reducer";
 import { AGENT_TOOLS, executeTool } from "../ai/tools";
 import { parseSearchReplaceBlocks, generateUnifiedDiff } from "../ai/edit-parser";
-import { CloseIcon, ChevronRightIcon } from "../ui/icons";
+import {
+  CloseIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+  CheckIcon,
+  GearIcon,
+  SparklesIcon,
+  SearchIcon,
+} from "../ui/icons";
+import {
+  getActiveModel,
+  setActiveModel,
+  getEnabledModels,
+  type ModelInfo,
+} from "../settings/models";
 
 export interface AssistantPanelProps {
   availableFiles: string[];
@@ -16,7 +30,7 @@ export interface AssistantPanelProps {
     txId: string
   ) => Promise<boolean> | void;
   onRevertMultiFilePatch?: (txId: string, filePaths: string[]) => Promise<boolean> | void;
-  onOpenSettings?: () => void;
+  onOpenSettings?: (tab?: "keys" | "models") => void;
   onClose: () => void;
 }
 
@@ -33,6 +47,29 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const [contextFiles, setContextFiles] = createSignal<string[]>([]);
   const [mentionMenuOpen, setMentionMenuOpen] = createSignal(false);
   const [mentionFilter, setMentionFilter] = createSignal("");
+
+  // Model Selection state (Cursor-style)
+  const [activeModel, setActiveModelSignal] = createSignal<ModelInfo>(getActiveModel());
+  const [enabledModels, setEnabledModels] = createSignal<ModelInfo[]>(getEnabledModels());
+  const [modelMenuOpen, setModelMenuOpen] = createSignal(false);
+  const [modelSearch, setModelSearch] = createSignal("");
+
+  const updateModelsFromStorage = () => {
+    setActiveModelSignal(getActiveModel());
+    setEnabledModels(getEnabledModels());
+  };
+
+  const filteredEnabledModels = () => {
+    const q = modelSearch().toLowerCase().trim();
+    const list = enabledModels();
+    if (!q) return list;
+    return list.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        m.id.toLowerCase().includes(q) ||
+        m.provider.toLowerCase().includes(q)
+    );
+  };
 
   const streamReducer = createStreamReducer();
   let inputRef!: HTMLTextAreaElement;
@@ -125,11 +162,14 @@ export function AssistantPanel(props: AssistantPanelProps) {
       let isLoopDone = false;
       let iterations = 0;
 
+      const modelToUse = activeModel();
       while (!isLoopDone && iterations < 5) {
         iterations++;
         const stream = streamLlm(conversation, AGENT_TOOLS, {
           system: systemPrompt,
           signal: abortController.signal,
+          model: modelToUse.id,
+          provider: modelToUse.provider,
         });
 
         let accumulatedText = "";
@@ -238,11 +278,15 @@ export function AssistantPanel(props: AssistantPanelProps) {
 
   onMount(() => {
     inputRef?.focus();
+    window.addEventListener("yones-active-model-changed", updateModelsFromStorage);
+    window.addEventListener("yones-model-registry-updated", updateModelsFromStorage);
   });
 
   onCleanup(() => {
     abortController?.abort();
     streamReducer.abort();
+    window.removeEventListener("yones-active-model-changed", updateModelsFromStorage);
+    window.removeEventListener("yones-model-registry-updated", updateModelsFromStorage);
   });
 
   return (
@@ -254,13 +298,23 @@ export function AssistantPanel(props: AssistantPanelProps) {
             <div class="h-2 w-2 rounded-full bg-[var(--color-accent)] animate-agent-working" />
           </Show>
         </div>
-        <button
-          type="button"
-          class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-0.5 rounded hover:bg-[var(--color-bg-active)] flex items-center justify-center"
-          onClick={props.onClose}
-        >
-          <CloseIcon class="h-3.5 w-3.5" />
-        </button>
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-1 rounded hover:bg-[var(--color-bg-active)] flex items-center gap-1 text-[11px]"
+            title="Configure Models (Cursor-style toggles)"
+            onClick={() => props.onOpenSettings?.("models")}
+          >
+            <SparklesIcon class="h-3 w-3 text-[var(--color-accent)]" />
+          </button>
+          <button
+            type="button"
+            class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer p-0.5 rounded hover:bg-[var(--color-bg-active)] flex items-center justify-center"
+            onClick={props.onClose}
+          >
+            <CloseIcon class="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <Show when={props.hasApiKey === false}>
@@ -269,7 +323,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
           <button
             type="button"
             class="text-[var(--color-accent)] hover:underline font-medium cursor-pointer inline-flex items-center gap-1"
-            onClick={props.onOpenSettings}
+            onClick={() => props.onOpenSettings?.("keys")}
           >
             Configure
             <ChevronRightIcon class="h-3 w-3" />
@@ -317,11 +371,137 @@ export function AssistantPanel(props: AssistantPanelProps) {
           disabled={streamReducer.state().isStreaming}
         />
 
-        <div class="mt-1 flex items-center justify-between text-[10px] text-[var(--color-fg-muted)]">
-          <span>Cmd+L: Toggle &bull; Esc: Abort stream</span>
-          <Show when={streamReducer.state().costUsd > 0}>
-            <span>${streamReducer.state().costUsd.toFixed(5)}</span>
-          </Show>
+        <div class="mt-2 flex items-center justify-between gap-2">
+          {/* Cursor-style Active Model Selector */}
+          <div class="relative">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-[var(--color-bg-raised)] hover:bg-[var(--color-bg-active)] text-[var(--color-fg-primary)] border border-[var(--color-border-subtle)] transition-colors cursor-pointer"
+              onClick={() => setModelMenuOpen((v) => !v)}
+              title="Select Active AI Model (Cursor-style)"
+            >
+              <SparklesIcon class="h-3 w-3 text-[var(--color-accent)]" />
+              <span class="truncate max-w-[120px]">{activeModel().name}</span>
+              <ChevronDownIcon class="h-2.5 w-2.5 text-[var(--color-fg-muted)]" />
+            </button>
+
+            {/* Model Selection Dropdown Popup */}
+            <Show when={modelMenuOpen()}>
+              {/* Overlay for closing on outside click */}
+              <div
+                class="fixed inset-0 z-40"
+                onClick={() => setModelMenuOpen(false)}
+              />
+
+              <div class="absolute bottom-full left-0 mb-1.5 w-72 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-raised)] shadow-2xl z-50 overflow-hidden flex flex-col">
+                {/* Search Bar */}
+                <div class="p-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)] flex items-center gap-1.5">
+                  <SearchIcon class="h-3 w-3 text-[var(--color-fg-muted)] shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search enabled models..."
+                    class="w-full text-[11px] bg-transparent text-[var(--color-fg-primary)] placeholder-[var(--color-fg-muted)] outline-none"
+                    value={modelSearch()}
+                    onInput={(e) => setModelSearch(e.currentTarget.value)}
+                    autofocus
+                  />
+                  <Show when={modelSearch()}>
+                    <button
+                      type="button"
+                      class="text-[var(--color-fg-muted)] hover:text-[var(--color-fg-primary)] cursor-pointer"
+                      onClick={() => setModelSearch("")}
+                    >
+                      <CloseIcon class="h-3 w-3" />
+                    </button>
+                  </Show>
+                </div>
+
+                {/* Models List */}
+                <div class="max-h-56 overflow-y-auto py-1 divide-y divide-[var(--color-border-subtle)]">
+                  <Show
+                    when={filteredEnabledModels().length > 0}
+                    fallback={
+                      <div class="py-6 text-center text-[11px] text-[var(--color-fg-muted)]">
+                        No enabled models match search.
+                      </div>
+                    }
+                  >
+                    <For each={filteredEnabledModels()}>
+                      {(model) => {
+                        const isSelected = () => model.id === activeModel().id;
+                        return (
+                          <button
+                            type="button"
+                            class="w-full px-2.5 py-1.5 text-left flex items-center justify-between hover:bg-[var(--color-bg-active)] cursor-pointer transition-colors"
+                            classList={{
+                              "bg-[var(--color-bg-active)]": isSelected(),
+                            }}
+                            onClick={() => {
+                              setActiveModel(model.id);
+                              setActiveModelSignal(model);
+                              setModelMenuOpen(false);
+                            }}
+                          >
+                            <div class="flex-1 min-w-0 pr-2 space-y-0.5">
+                              <div class="flex items-center gap-1.5">
+                                <span
+                                  class="text-xs font-medium truncate"
+                                  classList={{
+                                    "text-[var(--color-accent)] font-semibold": isSelected(),
+                                    "text-[var(--color-fg-primary)]": !isSelected(),
+                                  }}
+                                >
+                                  {model.name}
+                                </span>
+                                <Show when={model.context}>
+                                  <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-[var(--color-bg-panel)] text-[var(--color-fg-muted)] border border-[var(--color-border-subtle)]">
+                                    {model.context}
+                                  </span>
+                                </Show>
+                              </div>
+                              <div class="text-[10px] text-[var(--color-fg-muted)] font-mono truncate flex items-center gap-1">
+                                <span class="uppercase text-[9px] px-1 rounded bg-[var(--color-bg-panel)] border border-[var(--color-border-subtle)]">
+                                  {model.provider}
+                                </span>
+                                <span class="truncate">{model.id}</span>
+                              </div>
+                            </div>
+                            <Show when={isSelected()}>
+                              <CheckIcon class="h-3.5 w-3.5 text-[var(--color-accent)] shrink-0" />
+                            </Show>
+                          </button>
+                        );
+                      }}
+                    </For>
+                  </Show>
+                </div>
+
+                {/* Footer: Configure Models Link */}
+                <div class="p-1.5 border-t border-[var(--color-border-subtle)] bg-[var(--color-bg-panel)]">
+                  <button
+                    type="button"
+                    class="w-full px-2 py-1 text-[11px] font-medium text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)] hover:bg-[var(--color-bg-active)] rounded flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                    onClick={() => {
+                      setModelMenuOpen(false);
+                      props.onOpenSettings?.("models");
+                    }}
+                  >
+                    <GearIcon class="h-3 w-3" />
+                    Configure Models ({enabledModels().length} active)
+                  </button>
+                </div>
+              </div>
+            </Show>
+          </div>
+
+          <div class="flex items-center gap-2 text-[10px] text-[var(--color-fg-muted)]">
+            <Show when={streamReducer.state().costUsd > 0}>
+              <span class="font-mono text-[var(--color-accent)]">
+                ${streamReducer.state().costUsd.toFixed(5)}
+              </span>
+            </Show>
+            <span>Esc: Abort</span>
+          </div>
         </div>
       </div>
     </div>

@@ -347,6 +347,77 @@ async fn execute_agent_tool(
     }
 }
 
+#[tauri::command]
+async fn fetch_provider_models(provider: String) -> Result<Vec<String>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    match provider.as_str() {
+        "ollama" => {
+            let res = client
+                .get("http://localhost:11434/api/tags")
+                .send()
+                .await
+                .map_err(|e| format!("Could not connect to Ollama: {}", e))?;
+            let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+            let mut models = Vec::new();
+            if let Some(arr) = json.get("models").and_then(|m| m.as_array()) {
+                for item in arr {
+                    if let Some(name) = item.get("name").and_then(|n| n.as_str()) {
+                        models.push(name.to_string());
+                    }
+                }
+            }
+            Ok(models)
+        }
+        "openrouter" => {
+            let res = client
+                .get("https://openrouter.ai/api/v1/models")
+                .send()
+                .await
+                .map_err(|e| format!("OpenRouter error: {}", e))?;
+            let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+            let mut models = Vec::new();
+            if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
+                for item in arr.iter().take(40) {
+                    if let Some(id) = item.get("id").and_then(|n| n.as_str()) {
+                        models.push(id.to_string());
+                    }
+                }
+            }
+            Ok(models)
+        }
+        "openai" => {
+            let key = SecretManager::get_key("openai").unwrap_or_default();
+            if key.trim().is_empty() {
+                return Err("OpenAI API key is not configured".into());
+            }
+            let res = client
+                .get("https://api.openai.com/v1/models")
+                .header("Authorization", format!("Bearer {}", key.trim()))
+                .send()
+                .await
+                .map_err(|e| format!("OpenAI error: {}", e))?;
+            let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+            let mut models = Vec::new();
+            if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
+                for item in arr {
+                    if let Some(id) = item.get("id").and_then(|n| n.as_str()) {
+                        if id.starts_with("gpt-") || id.starts_with("o1") || id.starts_with("o3") {
+                            models.push(id.to_string());
+                        }
+                    }
+                }
+            }
+            models.sort();
+            Ok(models)
+        }
+        _ => Ok(vec![]),
+    }
+}
+
 pub fn run() {
     let app_state = Arc::new(AppState {
         llm: LlmService::new(),
@@ -370,6 +441,7 @@ pub fn run() {
             set_api_key,
             delete_api_key,
             test_api_key,
+            fetch_provider_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Yones IDE application");

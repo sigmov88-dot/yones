@@ -9,7 +9,7 @@ import { AssistantPanel } from "./assistant/Panel";
 import { StatusBar } from "./ui/StatusBar";
 import { ApiKeyModal } from "./settings/ApiKeyModal";
 import { fetchAllKeyStatuses } from "./settings/api-keys";
-import { GearIcon, SparklesIcon, FolderIcon, SearchIcon, CloseIcon } from "./ui/icons";
+import { SparklesIcon, FolderIcon, SearchIcon, CloseIcon, KeyIcon } from "./ui/icons";
 
 interface OpenTab {
   path: string;
@@ -36,6 +36,7 @@ export function App() {
     warnings: 0,
   });
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [settingsTab, setSettingsTab] = createSignal<"keys" | "models">("keys");
   const [hasConfiguredKey, setHasConfiguredKey] = createSignal(true);
 
   const checkApiKeys = async () => {
@@ -276,14 +277,35 @@ export function App() {
             type="button"
             class="px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
             classList={{
-              "bg-[var(--color-accent)] text-white border-transparent": settingsOpen(),
+              "bg-[var(--color-accent)] text-white border-transparent": settingsOpen() && settingsTab() === "models",
               "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
-                !settingsOpen(),
+                !(settingsOpen() && settingsTab() === "models"),
             }}
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => {
+              setSettingsTab("models");
+              setSettingsOpen(true);
+            }}
+            title="Configure & Toggle AI Models (Cursor-style)"
+          >
+            <SparklesIcon class="h-3.5 w-3.5" />
+            <span>Models</span>
+          </button>
+
+          <button
+            type="button"
+            class="px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer flex items-center gap-1.5"
+            classList={{
+              "bg-[var(--color-accent)] text-white border-transparent": settingsOpen() && settingsTab() === "keys",
+              "bg-[var(--color-bg-raised)] text-[var(--color-fg-secondary)] border-[var(--color-border)] hover:text-[var(--color-fg-primary)]":
+                !(settingsOpen() && settingsTab() === "keys"),
+            }}
+            onClick={() => {
+              setSettingsTab("keys");
+              setSettingsOpen(true);
+            }}
             title="Configure API Keys & Model Providers"
           >
-            <GearIcon class="h-3.5 w-3.5" />
+            <KeyIcon class="h-3.5 w-3.5" />
             <span>API Keys</span>
             <span
               class="h-1.5 w-1.5 rounded-full"
@@ -430,7 +452,10 @@ export function App() {
               availableFiles={files().map((f) => f.path)}
               currentFilePath={activeTabPath() ?? undefined}
               hasApiKey={hasConfiguredKey()}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenSettings={(tab) => {
+                setSettingsTab(tab ?? "keys");
+                setSettingsOpen(true);
+              }}
               onApplyMultiFilePatch={handleApplyMultiFilePatch}
               onRevertMultiFilePatch={handleRevertMultiFilePatch}
               onClose={() => setAssistantOpen(false)}
@@ -465,6 +490,7 @@ export function App() {
       {/* Settings / API Keys Modal */}
       <Show when={settingsOpen()}>
         <ApiKeyModal
+          initialTab={settingsTab()}
           onClose={() => setSettingsOpen(false)}
           onKeysUpdated={checkApiKeys}
         />
